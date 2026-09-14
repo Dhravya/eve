@@ -10,14 +10,12 @@ import {
   type MessageStreamEvent,
 } from "#protocol/message.js";
 import {
-  type ActiveTurn,
   assertExclusiveTurnInput,
   collectPendingAuthorizations,
   createAbortSignal,
   createSubmissionId,
   isAbortError,
   isSettledSessionTail,
-  type PendingMessageSubmission,
   toTerminalStreamFailureError,
   updatePendingAuthorizations,
 } from "#client/eve-agent-store-helpers.js";
@@ -101,7 +99,25 @@ export interface EveAgentStoreInit<TData> {
   readonly session?: ClientSession;
 }
 
+interface PendingMessageSubmission {
+  readonly createdAt: number;
+  readonly id: string;
+  readonly message: string;
+}
+
 const detachStore = Symbol("detachEveAgentStore");
+
+interface ActiveTurn {
+  readonly abortController: AbortController;
+  acceptedFollowUps: number;
+  readonly cancel: () => Promise<CancelSessionResult>;
+  readonly completion: Promise<void>;
+  readonly followUpDispatches: Set<Promise<void>>;
+  receivedFollowUps: number;
+  readonly resolveCompletion: () => void;
+  readonly response: Promise<MessageResponse | undefined>;
+  readonly resolveResponse: (response: MessageResponse | undefined) => void;
+}
 
 /**
  * Framework-agnostic state machine for an eve agent session.
@@ -123,7 +139,9 @@ export class EveAgentStore<TData> {
   readonly #reducer: EveAgentReducer<TData>;
   readonly #subscribers = new Set<() => void>();
 
+  /** Ids already folded into the projection: `initialEvents` and a reconnect can overlap. */
   #seenEvents = createEventDeduper();
+
   #activeTurn: ActiveTurn | undefined;
   readonly #backgroundTaskFollower: BackgroundTaskFollower;
   #callbacks: EveAgentStoreCallbacks<TData> = {};
@@ -146,6 +164,8 @@ export class EveAgentStore<TData> {
           headers: init.headers,
           host: init.host ?? "",
         });
+    // Seed the deduper from the saved log so a live stream that replays the
+    // same prefix does not double-apply it.
     const initialEvents: MessageStreamEvent[] = [];
     for (const event of init.initialEvents ?? []) {
       if (this.#seenEvents.admit(event)) initialEvents.push(event);
@@ -166,18 +186,17 @@ export class EveAgentStore<TData> {
     this.#snapshot = this.#createSnapshot();
     this.#backgroundTaskFollower = new BackgroundTaskFollower({
       acceptEvent: (event) => this.#acceptServerEvent(event),
-      getSession: () => (this.#activeTurn === undefined ? this.#session : undefined),
+      onBoundary: (session) => {
+        this.#status = this.#error === undefined ? "ready" : "error";
+        this.#callbacks.onSessionChange?.(session.state);
+        this.#publish();
+        this.#callbacks.onFinish?.(this.#snapshot);
+      },
       onError: (error) => {
         this.#error = toError(error);
         this.#status = "error";
         this.#callbacks.onError?.(this.#error);
         this.#publish();
-      },
-      onWaiting: (session) => {
-        this.#status = "ready";
-        this.#callbacks.onSessionChange?.(session.state);
-        this.#publish();
-        this.#callbacks.onFinish?.(this.#snapshot);
       },
     });
     this.#backgroundTaskFollower.seed(initialEvents);
@@ -288,7 +307,7 @@ export class EveAgentStore<TData> {
         this.#publish();
         this.#callbacks.onFinish?.(this.#snapshot);
         turn.resolveCompletion();
-        this.#backgroundTaskFollower.start();
+        this.#backgroundTaskFollower.start(this.#session);
       }
     }
   }
@@ -408,7 +427,7 @@ export class EveAgentStore<TData> {
         this.#publish();
         this.#callbacks.onFinish?.(this.#snapshot);
         turn.resolveCompletion();
-        this.#backgroundTaskFollower.start();
+        this.#backgroundTaskFollower.start(this.#session);
       }
     }
   }
@@ -595,7 +614,11 @@ export class EveAgentStore<TData> {
 
   #applyServerEvent(event: MessageStreamEvent): void {
     const pendingSubmission = this.#pendingMessageSubmissions[0];
-    if (event.type === "message.received" && event.data.message === pendingSubmission?.message) {
+    if (
+      event.type === "message.received" &&
+      event.data.kind !== "execution.background_task" &&
+      pendingSubmission !== undefined
+    ) {
       const submissionId = pendingSubmission.id;
       this.#pendingMessageSubmissions = this.#pendingMessageSubmissions.slice(1);
       this.#replaceProjectionEvent(

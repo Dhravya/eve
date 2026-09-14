@@ -710,6 +710,8 @@ export interface AuthorizationCompletedStreamEvent {
  */
 export interface SessionWaitingStreamEvent {
   data: {
+    /** Durable background-work state at this boundary, when the session has owned tasks. */
+    backgroundTasks?: "pending" | "settled";
     /** Channel-local continuation token, or the immutable session ID for an ID-only session. */
     continuationToken: string;
     wait: "next-user-message";
@@ -1677,9 +1679,13 @@ export function createCompactionCompletedEvent(input: {
  */
 export function createSessionWaitingEvent(
   namespacedContinuationToken: string = "",
+  options?: { readonly backgroundTasks?: "pending" | "settled" },
 ): SessionWaitingStreamEvent {
   return {
     data: {
+      ...(options?.backgroundTasks === undefined
+        ? {}
+        : { backgroundTasks: options.backgroundTasks }),
       continuationToken: toChannelLocalContinuationToken(namespacedContinuationToken),
       wait: "next-user-message",
     },

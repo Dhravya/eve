@@ -905,20 +905,9 @@ describe("EveAgentStore steering", () => {
 });
 
 describe("EveAgentStore background tasks", () => {
-  it("keeps following after a background tool receipt", async () => {
+  it("keeps following while the waiting boundary reports pending background tasks", async () => {
     const initialEvents = stampTestEvents([
       createMessageReceivedEvent({ message: "Hello", sequence: 0, turnId: "turn_0" }),
-      createActionResultEvent({
-        result: {
-          callId: "call_1",
-          kind: "tool-result",
-          output: { status: "working", taskId: "task_1" },
-          toolName: "write_later",
-        },
-        sequence: 0,
-        stepIndex: 0,
-        turnId: "turn_0",
-      }),
       createMessageCompletedEvent({
         finishReason: "stop",
         message: "The background task started.",
@@ -926,7 +915,7 @@ describe("EveAgentStore background tasks", () => {
         stepIndex: 1,
         turnId: "turn_0",
       }),
-      createSessionWaitingEvent(),
+      createSessionWaitingEvent("", { backgroundTasks: "pending" }),
     ] as UnstampedMessageStreamEvent[]);
     const callbackStream = controlledStreamResponse();
     const [callbackStarted, callbackCompleted, callbackWaiting] = stampTestEvents([
@@ -938,7 +927,7 @@ describe("EveAgentStore background tasks", () => {
         stepIndex: 0,
         turnId: "turn_1",
       }),
-      createSessionWaitingEvent(),
+      createSessionWaitingEvent("", { backgroundTasks: "settled" }),
     ] as UnstampedMessageStreamEvent[]).map((event, index) => ({
       ...event,
       meta: { ...event.meta, id: `callback_${index}` },
@@ -965,34 +954,35 @@ describe("EveAgentStore background tasks", () => {
       }),
     );
     expect(store.snapshot.status).toBe("ready");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     detachEveAgentStore(store);
   });
 
-  it("recognizes background subagent receipts", async () => {
+  it("does not infer background work from an arbitrary tool result shape", async () => {
     const initialEvents = stampTestEvents([
       createMessageReceivedEvent({ message: "Hello", sequence: 0, turnId: "turn_0" }),
-      {
-        data: {
-          backgroundTask: { status: "working", taskId: "task_1" },
+      createActionResultEvent({
+        result: {
           callId: "call_1",
-          output: "Started.",
-          subagentName: "researcher",
+          kind: "tool-result",
+          output: { status: "working", taskId: "not-a-framework-task" },
+          toolName: "check_status",
         },
-        type: "subagent.completed",
-      },
+        sequence: 0,
+        stepIndex: 0,
+        turnId: "turn_0",
+      }),
       createSessionWaitingEvent(),
     ] as UnstampedMessageStreamEvent[]);
-    const callbackStream = controlledStreamResponse();
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(startedResponse())
-      .mockResolvedValueOnce(streamResponse(initialEvents))
-      .mockResolvedValueOnce(callbackStream.response);
+      .mockResolvedValueOnce(streamResponse(initialEvents));
     const store = new EveAgentStore({ reducer: defaultMessageReducer() });
 
     await store.send({ message: "Hello" });
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
 
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     detachEveAgentStore(store);
   });
 

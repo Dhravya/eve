@@ -4,9 +4,8 @@ import type { MessageStreamEvent } from "#protocol/message.js";
 
 interface BackgroundTaskFollowerCallbacks {
   readonly acceptEvent: (event: MessageStreamEvent) => void;
-  readonly getSession: () => ClientSession | undefined;
+  readonly onBoundary: (session: ClientSession) => void;
   readonly onError: (error: unknown) => void;
-  readonly onWaiting: (session: ClientSession) => void;
 }
 
 export class BackgroundTaskFollower {
@@ -20,11 +19,13 @@ export class BackgroundTaskFollower {
   }
 
   observe(event: MessageStreamEvent): void {
-    if (isBackgroundTaskReceiptEvent(event)) this.#enabled = true;
+    if (!isSessionBoundary(event)) return;
+    this.#enabled = event.type === "session.waiting" && event.data.backgroundTasks === "pending";
   }
 
   seed(events: readonly MessageStreamEvent[]): void {
-    this.#enabled = events.some(isBackgroundTaskReceiptEvent);
+    const boundary = events.findLast(isSessionBoundary);
+    if (boundary !== undefined) this.observe(boundary);
   }
 
   stop(): Promise<void> | undefined {
@@ -39,8 +40,7 @@ export class BackgroundTaskFollower {
     this.#promise = undefined;
   }
 
-  start(): void {
-    const session = this.#callbacks.getSession();
+  start(session: ClientSession | undefined): void {
     if (!this.#enabled || session === undefined || this.#controller !== undefined) return;
 
     const controller = new AbortController();
@@ -59,10 +59,9 @@ export class BackgroundTaskFollower {
         for await (const event of session.stream({ signal: controller.signal })) {
           if (this.#controller !== controller) return;
           this.#callbacks.acceptEvent(event);
-          if (event.type === "session.waiting") {
-            this.#callbacks.onWaiting(session);
-          } else if (event.type === "session.completed" || event.type === "session.failed") {
-            this.#enabled = false;
+          if (isSessionBoundary(event)) {
+            this.#callbacks.onBoundary(session);
+            break;
           }
         }
       }
@@ -72,19 +71,15 @@ export class BackgroundTaskFollower {
   }
 }
 
-export function isBackgroundTaskReceiptEvent(event: MessageStreamEvent): boolean {
-  if (event.type === "subagent.completed") {
-    return event.data.backgroundTask?.status === "working";
-  }
-  if (event.type !== "action.result" || event.data.result.kind !== "tool-result") return false;
-
-  const output = event.data.result.output;
+function isSessionBoundary(
+  event: MessageStreamEvent,
+): event is Extract<
+  MessageStreamEvent,
+  { readonly type: "session.completed" | "session.failed" | "session.waiting" }
+> {
   return (
-    typeof output === "object" &&
-    output !== null &&
-    "status" in output &&
-    output.status === "working" &&
-    "taskId" in output &&
-    typeof output.taskId === "string"
+    event.type === "session.waiting" ||
+    event.type === "session.completed" ||
+    event.type === "session.failed"
   );
 }
