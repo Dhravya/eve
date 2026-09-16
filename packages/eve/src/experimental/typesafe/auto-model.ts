@@ -1,16 +1,21 @@
 import { createHash } from "node:crypto";
 
-import { defineState } from "eve/context";
-import { defineDynamic, type DynamicResolveContext, type DynamicSentinel } from "eve/tools";
+import { loadContext } from "#context/container.js";
+import { ContextKey } from "#context/key.js";
+import {
+  defineDynamic,
+  type DynamicResolveContext,
+  type DynamicSentinel,
+} from "#dynamic/definition.js";
 
 import { decide, withSignal } from "./decide.js";
 import { DecisionError } from "./errors.js";
 import type { ChoiceAnswer, DecisionConfig, DecisionInput, DecisionResult } from "./types.js";
 import { boundedJson, object, validateConfig, validateInput } from "./validation.js";
 
-export type SmartModelOption = readonly [model: string, description: string];
+export type AutoModelOption = readonly [model: string, description: string];
 
-export interface SmartModelDecision {
+export interface AutoModelDecision {
   readonly model: string;
   readonly source: "decision" | "uncertainty" | "unavailable";
   readonly answer?: ChoiceAnswer;
@@ -20,8 +25,8 @@ export interface SmartModelDecision {
 }
 
 /** Choose an allowlisted language model at the first step of a turn or session. */
-export interface SmartModelConfig<
-  T extends readonly SmartModelOption[] = readonly SmartModelOption[],
+export interface AutoModelConfig<
+  T extends readonly AutoModelOption[] = readonly AutoModelOption[],
 > extends DecisionConfig {
   readonly options: T;
   /** Default: turn. A selection is reused across every step in its scope. */
@@ -39,7 +44,7 @@ export interface SmartModelConfig<
   /** Validate deterministic requirements against the full current context on every step. */
   readonly eligible?: (model: T[number][0], ctx: DynamicResolveContext) => boolean;
   /** Observe fresh selections, excluding prompt/state and credentials. Failures propagate. */
-  readonly onDecision?: (decision: SmartModelDecision) => void | Promise<void>;
+  readonly onDecision?: (decision: AutoModelDecision) => void | Promise<void>;
 }
 
 const NO_FIT = "__eve_typesafe_no_fit__";
@@ -51,7 +56,7 @@ function turnKey(event: unknown): string {
     typeof event.data.turnId !== "string" ||
     !event.data.turnId
   )
-    throw new DecisionError("routing", "smartModel requires a step.started event with a turn ID.");
+    throw new DecisionError("routing", "autoModel requires a step.started event with a turn ID.");
   return event.data.turnId;
 }
 
@@ -74,7 +79,7 @@ export function routingState(ctx: DynamicResolveContext): DecisionInput["state"]
       if (messages.length === 0)
         throw new DecisionError(
           "input",
-          "The latest routing message exceeds 16000 characters. Supply a bounded smartModel state callback.",
+          "The latest routing message exceeds 16000 characters. Supply a bounded autoModel state callback.",
         );
       break;
     }
@@ -84,14 +89,14 @@ export function routingState(ctx: DynamicResolveContext): DecisionInput["state"]
   if (!messages.some((message) => message.role === "user"))
     throw new DecisionError(
       "routing",
-      "smartModel needs user text. Supply state for tasks without a text prompt.",
+      "autoModel needs user text. Supply state for tasks without a text prompt.",
     );
   return { messages };
 }
 
 /** Return a normal eve dynamic model definition; no inference runs during compilation. */
-export function smartModel<const T extends readonly SmartModelOption[]>(
-  config: SmartModelConfig<T>,
+export function autoModel<const T extends readonly AutoModelOption[]>(
+  config: AutoModelConfig<T>,
 ): DynamicSentinel<string> {
   validateConfig(config);
   if (
@@ -109,7 +114,7 @@ export function smartModel<const T extends readonly SmartModelOption[]>(
   ) {
     throw new DecisionError(
       "configuration",
-      "smartModel requires model/description tuples and callable state, eligible, and onDecision options.",
+      "autoModel requires model/description tuples and callable state, eligible, and onDecision options.",
     );
   }
   const options = config.options.map(([model, description]) => [model, description] as const);
@@ -120,7 +125,7 @@ export function smartModel<const T extends readonly SmartModelOption[]>(
     new Set(options.map(([model]) => model)).size !== options.length ||
     Object.hasOwn(candidates, NO_FIT)
   )
-    throw new DecisionError("configuration", "smartModel requires 1–254 unique model options.");
+    throw new DecisionError("configuration", "autoModel requires 1–254 unique model options.");
   validateInput({
     state: "validation",
     questions: { route: { type: "choice", prompt: "Select a model", options: candidates } },
@@ -138,7 +143,7 @@ export function smartModel<const T extends readonly SmartModelOption[]>(
   )
     throw new DecisionError(
       "configuration",
-      "smartModel requires valid scope, confidence in [0, 1], and an allowlisted fallback for uncertainty or error policies.",
+      "autoModel requires valid scope, confidence in [0, 1], and an allowlisted fallback for uncertainty or error policies.",
     );
   const settings = { ...config, options };
   const fingerprint = createHash("sha256")
@@ -157,9 +162,8 @@ export function smartModel<const T extends readonly SmartModelOption[]>(
       }),
     )
     .digest("hex");
-  const selection = defineState<{ key: string; decision: SmartModelDecision } | null>(
-    `@eve/typesafe.model.${fingerprint}`,
-    () => null,
+  const selection = new ContextKey<{ key: string; decision: AutoModelDecision }>(
+    `eve.experimental.typesafe.model.${fingerprint}`,
   );
   return defineDynamic({
     events: {
@@ -171,14 +175,14 @@ export function smartModel<const T extends readonly SmartModelOption[]>(
           if (typeof eligible !== "boolean")
             throw new DecisionError(
               "configuration",
-              "smartModel eligible must return a boolean synchronously.",
+              "autoModel eligible must return a boolean synchronously.",
             );
           return eligible;
         });
         if (allowed.length === 0)
           throw new DecisionError(
             "routing",
-            "No smartModel option satisfies the configured eligibility constraints.",
+            "No autoModel option satisfies the configured eligibility constraints.",
           );
         const hasNontext = ctx.messages.some(
           (message) =>
@@ -190,7 +194,8 @@ export function smartModel<const T extends readonly SmartModelOption[]>(
             "routing",
             "Nontext input requires an eligible callback that restricts routing to compatible models.",
           );
-        const previous = selection.get();
+        const stateContext = loadContext();
+        const previous = stateContext.get(selection);
         if (previous?.key === key) {
           if (!allowed.some(([model]) => model === previous.decision.model))
             throw new DecisionError(
@@ -213,14 +218,14 @@ export function smartModel<const T extends readonly SmartModelOption[]>(
         const timer = setTimeout(
           () =>
             controller.abort(
-              new DecisionError("timeout", "smartModel exceeded its total deadline."),
+              new DecisionError("timeout", "autoModel exceeded its total deadline."),
             ),
           settings.timeoutMs ?? 1000,
         );
         const signal = ctx.abortSignal
           ? AbortSignal.any([ctx.abortSignal, controller.signal])
           : controller.signal;
-        let decision: SmartModelDecision;
+        let decision: AutoModelDecision;
         try {
           const state = await withSignal(
             Promise.resolve().then(() =>
@@ -280,7 +285,7 @@ export function smartModel<const T extends readonly SmartModelOption[]>(
         if (ctx.abortSignal) await withSignal(observed, ctx.abortSignal);
         else await observed;
         ctx.abortSignal?.throwIfAborted();
-        selection.update(() => ({ key, decision }));
+        stateContext.set(selection, { key, decision });
         return decision.model;
       },
     },

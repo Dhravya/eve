@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@eve-e2e/config": "workspace:*",
-    "@eve/typesafe": "workspace:*",
     "@workflow/world-postgres": "catalog:",
     "eve": "workspace:*"
   },

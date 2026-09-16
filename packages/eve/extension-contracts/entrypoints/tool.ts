@@ -18,3 +18,8 @@ export {
   type WorkflowToolInput,
   type WorkflowToolOptions,
 } from "../../src/public/tools/workflow.ts";
+export {
+  decide,
+  decisionTool,
+  DecisionError,
+} from "../../src/public/experimental/typesafe/index.ts";

@@ -8,9 +8,9 @@ last_updated: "2026-09-16"
 
 ## Recommendation
 
-Provide an opt-in decision API in the separate `@eve/typesafe` package, backed by
+Provide an opt-in decision API at `eve/experimental/typesafe` inside eve, backed by
 TypeSafe's Jev. Build two conveniences on it: a generic decision tool and
-`smartModel`, a helper that returns an ordinary `defineDynamic` model definition.
+`autoModel`, a helper that returns an ordinary `defineDynamic` model definition.
 Ship the decision tool first, then evaluate model routing on representative eve
 workloads before recommending it as a default.
 
@@ -19,8 +19,9 @@ context, classifying work, and checking evidence. Keep planning, text generation
 and difficult reasoning with the main agent. For a critical decision, ask Jev
 about specific factors and let explicit application policy determine the action.
 
-The maintainer requested implementation as `@eve/typesafe`; the decision API,
-tool, and router now live there. Other integrations remain follow-up ideas.
+The maintainer requested implementation as `eve/experimental/typesafe`; the decision API,
+tool, and router now live there. The API is experimental and may change as
+TypeSafe evolves. Other integrations remain follow-up ideas.
 See [the implemented API](../docs/guides/typesafe.md) for its concrete limits and
 configuration. Findings reflect TypeSafe's live documentation and eve source at
 `7b17b27f4`, reviewed on
@@ -167,7 +168,7 @@ at an acceptable task-success rate.
 | [Dynamic model lifecycle](../packages/eve/src/context/dynamic-model-lifecycle.ts)               | Session, turn, and step selections, with step > turn > session precedence. Every handler must return a concrete model; invalid selections fail. |
 | [`defineState`](../docs/concepts/state.md)                                                      | Durable session-local storage for a selected route. Children have their own state.                                                              |
 | [Model normalization](../packages/eve/src/runtime/agent/resolve-model.ts)                       | Existing validation and metadata resolution for the actual selected LLM. Jev should not duplicate this.                                         |
-| [Dynamic subagent configuration](../packages/eve/src/runtime/subagents/dynamic-agent-config.ts) | A dynamically returned `defineAgent` must contain a static model. Nesting `smartModel` in that returned config would fail.                      |
+| [Dynamic subagent configuration](../packages/eve/src/runtime/subagents/dynamic-agent-config.ts) | A dynamically returned `defineAgent` must contain a static model. Nesting `autoModel` in that returned config would fail.                       |
 | [Hooks](../docs/guides/hooks.md)                                                                | Observe-only lifecycle subscribers, suitable for evaluation and telemetry; not an interception point that can retract streamed output.          |
 
 There is a timing detail behind prompt-aware routing. The
@@ -181,13 +182,13 @@ memory. These events therefore do not consistently expose the incoming prompt.
 
 By contrast, the [tool loop](../packages/eve/src/harness/tool-loop.ts) invokes the
 step model resolver with projected messages after preparing turn input and before
-model-dependent compaction or inference. Use that boundary for `smartModel` and
+model-dependent compaction or inference. Use that boundary for `autoModel` and
 retain its decision for the desired scope. No new resolver event is needed.
 
 ## Proposed decision API and generic tool
 
-Use an eve-owned `@eve/typesafe` entry point with `decide`, `decisionTool`, and
-`smartModel`. The first implementation speaks TypeSafe HTTP internally. Public
+Use an eve-owned `eve/experimental/typesafe` entry point with `decide`, `decisionTool`, and
+`autoModel`. The first implementation speaks TypeSafe HTTP internally. Public
 schemas, result types, errors, and policy belong to eve; do not re-export SDK
 types or make Jev pretend to implement a conversational `LanguageModel`.
 
@@ -202,7 +203,7 @@ can separately find spans in code and let Jev choose among them.
 Proposed authored usage:
 
 ```ts
-import { decide } from "@eve/typesafe";
+import { decide } from "eve/experimental/typesafe";
 
 const result = await decide({
   model: "jev-latest",
@@ -247,7 +248,7 @@ The generic tool is a file the author opts into:
 
 ```ts
 // agent/tools/decide.ts
-import { decisionTool } from "@eve/typesafe";
+import { decisionTool } from "eve/experimental/typesafe";
 
 export default decisionTool({ model: "jev-latest" });
 ```
@@ -271,7 +272,7 @@ additional eve limits from measured workloads; the reviewed reference does not
 publish a total question limit or context window. Do not silently truncate
 critical evidence or silently split a request whose questions need the full state.
 
-## Proposed `smartModel`
+## Proposed `autoModel`
 
 Keep the requested tuple API. This is a reusable dynamic-model definition, not a
 new model provider or an extra agent:
@@ -279,10 +280,10 @@ new model provider or an extra agent:
 ```ts
 // agent/agent.ts
 import { defineAgent } from "eve";
-import { smartModel } from "@eve/typesafe";
+import { autoModel } from "eve/experimental/typesafe";
 
 export default defineAgent({
-  model: smartModel({
+  model: autoModel({
     options: [
       ["openai/gpt-5.6-sol", "For difficult reasoning and ambiguous engineering problems"],
       ["openai/gpt-5.6-luna", "For routine requests where fast completion matters"],
@@ -297,7 +298,7 @@ eve's normal runtime catalog and credential path.
 
 ### Selection semantics
 
-1. `smartModel` returns a `defineDynamic` definition with a `step.started`
+1. `autoModel` returns a `defineDynamic` definition with a `step.started`
    handler. Construction validates configuration but performs no network access
    or credential lookup during compilation.
 2. On the first step of each turn, build a bounded decision state from the latest
@@ -335,9 +336,9 @@ result, or request failure throws; there is no implicit default model. Productio
 routing should provide an evaluated confidence threshold and explicit fallback:
 
 ```ts
-import { smartModel } from "@eve/typesafe";
+import { autoModel } from "eve/experimental/typesafe";
 
-export const routedModel = smartModel({
+export const routedModel = autoModel({
   options: [
     ["openai/gpt-5.6-sol", "Difficult or ambiguous tasks"],
     ["openai/gpt-5.6-luna", "Routine tasks with clear requirements"],
@@ -375,7 +376,7 @@ Distinguish that from a subagent whose entire configuration is dynamically
 returned by a parent-side resolver. That returned configuration currently rejects
 a dynamic `model`. Such a resolver can call `decide` and return a concrete model,
 but it cannot see a future delegation prompt that has not been created. Prefer a
-statically authored child with `smartModel` for prompt-specific selection. A
+statically authored child with `autoModel` for prompt-specific selection. A
 remote agent must configure routing in its own runtime.
 
 Model switching can re-ingest conversation history at uncached prices. A cheap
@@ -407,7 +408,7 @@ its demonstration is not an independent end-to-end reliability result.
 
 ## Runtime boundaries
 
-Keep the integration in `packages/eve-typesafe`, using eve public APIs.
+Keep the integration in `packages/eve/src/experimental/typesafe`, using eve internal APIs.
 Prefer a small internal HTTP adapter using existing fetch, validation, and error
 utilities. If SDK behavior is worth reusing, vendor pinned implementation under
 a development dependency; avoid adding a runtime dependency or exposing SDK
@@ -435,7 +436,7 @@ prompts, credentials, or user records in ordinary logs.
 
 ## Validation and rollout
 
-The implementation includes `decide`, the opt-in tool, and `smartModel` over
+The implementation includes `decide`, the opt-in tool, and `autoModel` over
 one adapter, with published documentation and a patch changeset.
 
 - **Unit:** question validation and inferred types; answer keys, option membership,
@@ -444,7 +445,7 @@ one adapter, with published documentation and a patch changeset.
 - **Integration:** fake transport tests for deadlines, retries, cancellation,
   malformed payloads, state reuse, and tenant/session separation. Assert a later
   step reuses its route and a later turn reevaluates it.
-- **Scenario:** compile an agent and declared child from the packed package
+- **Scenario:** compile an agent and declared child from the packed eve package
   without a build-time key. Runtime prompt availability and independent child
   selection are exercised by the CI fixture.
 - **CI e2e:** deterministic fixture evals for the tool, routing, failure paths, and

@@ -63,7 +63,7 @@ to compaction calls.
 ### Choose the model dynamically
 
 For Jev to select a model from the incoming prompt, use
-[`smartModel` from `@eve/typesafe`](./guides/typesafe#select-a-model-from-the-prompt).
+[`autoModel` from `eve/experimental/typesafe`](./guides/typesafe#select-a-model-from-the-prompt).
 
 `model` also accepts `defineDynamic({ events })`. Each matching handler must
 return the concrete model for its scope; a dynamic model has no compiled

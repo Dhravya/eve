@@ -1,16 +1,16 @@
-import { defineTool, type ToolDefinition } from "eve/tools";
+import { defineTool, type ToolDefinition } from "#tools/definition.js";
 
 import { decide } from "./decide.js";
 import type { DecisionConfig, DecisionInput, DecisionResult } from "./types.js";
 import { validateConfig } from "./validation.js";
 
+export type DecisionTool = ToolDefinition<DecisionInput, DecisionResult>;
+
 const prompt = { type: "string", minLength: 1, maxLength: 8192 };
 const description = { type: "string", minLength: 1, maxLength: 4096 };
 
 /** Create a path-named eve tool. The agent supplies evidence and a finite question map. */
-export function decisionTool(
-  config: DecisionConfig = {},
-): ToolDefinition<DecisionInput, DecisionResult> {
+export function decisionTool(config: DecisionConfig = {}): DecisionTool {
   validateConfig(config);
   const options = { ...config };
   return defineTool<DecisionInput, DecisionResult>({

@@ -1,4 +1,4 @@
-import { smartModel } from "@eve/typesafe";
+import { autoModel } from "eve/experimental/typesafe";
 import { defineDynamic } from "eve";
 import { defineState } from "eve/context";
 import { mockModel, type MockModelResponder } from "eve/evals";
@@ -47,7 +47,7 @@ export const typesafeFetch: typeof globalThis.fetch = async (_url, init) => {
 
 /** Run the real router and substitute only downstream LLM generation with a scripted model. */
 export function fixtureModel(respond: MockModelResponder, scope: "turn" | "session" = "turn") {
-  const model = smartModel({
+  const model = autoModel({
     options: [
       ["openai/large", "Difficult investigations"],
       ["openai/small", "Routine requests"],

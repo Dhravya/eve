@@ -1,17 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DynamicResolveContext } from "eve/tools";
+import type { DynamicResolveContext } from "#dynamic/definition.js";
 
-import { smartModel } from "./smart-model.js";
+import { autoModel } from "./auto-model.js";
 
-vi.mock("eve/tools", () => ({ defineDynamic: (definition: unknown) => definition }));
+import { ContextContainer } from "#context/container.js";
+import { deserializeContext, serializeContext } from "#context/serialize.js";
 
-const runtime = vi.hoisted(() => ({ state: new Map<string, unknown>() }));
-vi.mock("eve/context", () => ({
-  defineState: (key: string, initial: () => unknown) => ({
-    get: () => (runtime.state.has(key) ? runtime.state.get(key) : initial()),
-    update: (fn: (value: unknown) => unknown) =>
-      runtime.state.set(key, fn(runtime.state.has(key) ? runtime.state.get(key) : initial())),
-  }),
+const runtime = vi.hoisted(() => ({ state: undefined as ContextContainer | undefined }));
+vi.mock("#context/container.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("#context/container.js")>()),
+  loadContext: () => runtime.state!,
 }));
 
 const options = [
@@ -51,14 +49,14 @@ function result(model = "openai/small", confidence = 0.9) {
 }
 
 beforeEach(() => {
-  runtime.state = new Map();
+  runtime.state = new ContextContainer();
 });
 
-describe("smartModel", () => {
+describe("autoModel", () => {
   it("defers inference, sees the first prompt, reuses the turn, and selects again on the next turn", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => result());
     const onDecision = vi.fn();
-    const handler = smartModel({ options, apiKey: "test", fetch, onDecision }).events[
+    const handler = autoModel({ options, apiKey: "test", fetch, onDecision }).events[
       "step.started"
     ]!;
     expect(fetch).not.toHaveBeenCalled();
@@ -71,22 +69,35 @@ describe("smartModel", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  it("retains a selection through durable context serialization", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => result());
+    const handler = autoModel({ options, apiKey: "test", fetch }).events["step.started"]!;
+    await handler(event(), context());
+    const saved = serializeContext(runtime.state!);
+    expect(Object.keys(saved)).toEqual([
+      expect.stringMatching(/^eve\.experimental\.typesafe\.model\./),
+    ]);
+    runtime.state = await deserializeContext(saved);
+    await handler(event(), context());
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
   it("retains session scope but never shares a selection with a child session", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => result());
-    const handler = smartModel({ options, apiKey: "test", fetch, scope: "session" }).events[
+    const handler = autoModel({ options, apiKey: "test", fetch, scope: "session" }).events[
       "step.started"
     ]!;
     await handler(event(), context());
     await handler(event("turn_2"), context());
     expect(fetch).toHaveBeenCalledOnce();
-    runtime.state = new Map();
+    runtime.state = new ContextContainer();
     await handler(event(), context("Bob has a separate child task."));
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it("uses explicit uncertainty fallback and retains the original distribution", async () => {
     const onDecision = vi.fn();
-    const handler = smartModel({
+    const handler = autoModel({
       options,
       apiKey: "test",
       fetch: async () => result("openai/small", 0.2),
@@ -102,7 +113,7 @@ describe("smartModel", () => {
   });
 
   it("fails no-fit without fallback, and rejects a fabricated choice", async () => {
-    const noFit = smartModel({
+    const noFit = autoModel({
       options,
       apiKey: "test",
       fetch: async () => result("__eve_typesafe_no_fit__"),
@@ -110,7 +121,7 @@ describe("smartModel", () => {
     await expect(noFit.events["step.started"]!(event(), context())).rejects.toMatchObject({
       code: "routing",
     });
-    const fabricated = smartModel({
+    const fabricated = autoModel({
       options,
       apiKey: "test",
       fetch: async () => result("outside"),
@@ -133,11 +144,11 @@ describe("smartModel", () => {
       fallback: "openai/large",
       onError: "fallback",
     } as const;
-    const handler = smartModel(config).events["step.started"]!;
+    const handler = autoModel(config).events["step.started"]!;
     expect(await handler(event(), context())).toBe("openai/large");
     expect(await handler(event(), context())).toBe("openai/large");
     expect(fetch).toHaveBeenCalledOnce();
-    runtime.state = new Map();
+    runtime.state = new ContextContainer();
     fetch.mockImplementation(async () => new Response(null, { status: 401 }));
     await expect(handler(event(), context())).rejects.toMatchObject({ code: "authentication" });
   });
@@ -145,7 +156,7 @@ describe("smartModel", () => {
   it("propagates turn cancellation even when fallback is configured", async () => {
     const controller = new AbortController();
     const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(() => new Promise(() => {}));
-    const handler = smartModel({
+    const handler = autoModel({
       options,
       apiKey: "test",
       fetch,
@@ -156,11 +167,11 @@ describe("smartModel", () => {
     await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
     controller.abort(new Error("cancelled"));
     await expect(pending).rejects.toThrow("cancelled");
-    expect(runtime.state.size).toBe(0);
+    expect(serializeContext(runtime.state!)).toEqual({});
   });
 
   it("bounds a custom state callback and uses deadline fallback", async () => {
-    const handler = smartModel({
+    const handler = autoModel({
       options,
       apiKey: "test",
       state: () => new Promise(() => {}),
@@ -173,7 +184,7 @@ describe("smartModel", () => {
 
   it("does not reuse a selected model when deterministic constraints change", async () => {
     let enabled = true;
-    const handler = smartModel({
+    const handler = autoModel({
       options,
       apiKey: "test",
       fetch: async () => result(),
@@ -185,7 +196,7 @@ describe("smartModel", () => {
   });
 
   it("requires explicit nontext eligibility and bounds exported text", async () => {
-    const handler = smartModel({ options, apiKey: "test", fetch: vi.fn() }).events["step.started"]!;
+    const handler = autoModel({ options, apiKey: "test", fetch: vi.fn() }).events["step.started"]!;
     await expect(
       handler(event(), {
         ...context(),
@@ -201,7 +212,7 @@ describe("smartModel", () => {
   });
 
   it("checks nontext steering before reusing a cached route", async () => {
-    const handler = smartModel({ options, apiKey: "test", fetch: async () => result() }).events[
+    const handler = autoModel({ options, apiKey: "test", fetch: async () => result() }).events[
       "step.started"
     ]!;
     await handler(event(), context());
@@ -219,7 +230,7 @@ describe("smartModel", () => {
   });
 
   it("rejects asynchronous eligibility instead of treating a Promise as permission", async () => {
-    const handler = smartModel({
+    const handler = autoModel({
       options,
       apiKey: "test",
       fetch: async () => result(),
@@ -229,10 +240,10 @@ describe("smartModel", () => {
   });
 
   it("rejects ambiguous configuration before compilation", () => {
-    expect(() => smartModel({ options: [] })).toThrow();
-    expect(() => smartModel({ options: [[42, "Routine work"]] } as never)).toThrow();
-    expect(() => smartModel({ options: [options[0], options[0]] })).toThrow();
-    expect(() => smartModel({ options, minConfidence: 0.8 })).toThrow();
-    expect(() => smartModel({ options, fallback: "outside" } as never)).toThrow();
+    expect(() => autoModel({ options: [] })).toThrow();
+    expect(() => autoModel({ options: [[42, "Routine work"]] } as never)).toThrow();
+    expect(() => autoModel({ options: [options[0], options[0]] })).toThrow();
+    expect(() => autoModel({ options, minConfidence: 0.8 })).toThrow();
+    expect(() => autoModel({ options, fallback: "outside" } as never)).toThrow();
   });
 });

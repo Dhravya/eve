@@ -1,4 +1,4 @@
-import { decisionTool } from "@eve/typesafe";
+import { decisionTool } from "eve/experimental/typesafe";
 
 import { typesafeFetch } from "../testing";
 

@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { decide } from "./decide.js";
 import { decisionTool } from "./tool.js";
-import type { ToolContext } from "eve/tools";
+import type { ToolContext } from "#tools/definition.js";
 
-vi.mock("eve/tools", () => ({ defineTool: (definition: unknown) => definition }));
+vi.mock("#tools/definition.js", () => ({ defineTool: (definition: unknown) => definition }));
 
 const questions = { urgent: { type: "probability", prompt: "Is action urgent?" } } as const;
 const payload = {

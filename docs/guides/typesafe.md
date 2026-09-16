@@ -1,17 +1,18 @@
 ---
 title: "TypeSafe Decisions"
-description: "Use Jev for typed decisions, batched judgment tools, and prompt-aware model routing with @eve/typesafe."
+description: "Use Jev for typed decisions, batched judgment tools, and prompt-aware model routing with eve/experimental/typesafe."
 ---
 
-`@eve/typesafe` adds Jev decisions to eve. Use `decide` from application code,
-`decisionTool` when an agent should ask questions, and `smartModel` to select an
-LLM from an authored list. The package owns its types and talks directly to the
-TypeSafe API; it does not install the TypeSafe SDK.
+`eve/experimental/typesafe` adds Jev decisions to eve. Use `decide` from application code,
+`decisionTool` when an agent should ask questions, and `autoModel` to select an
+LLM from an authored list. This experimental API is included in eve and may change
+as TypeSafe evolves. It uses eve-owned types and talks directly to the TypeSafe
+API without installing the TypeSafe SDK.
 
 ## Install and authenticate
 
 ```sh
-pnpm add @eve/typesafe eve
+pnpm add eve
 ```
 
 Get an API key from the [TypeSafe console](https://console.typesafe.ai/) and set
@@ -21,14 +22,14 @@ a key. You can also pass `apiKey: () => loadYourSecret()` to any helper. Keep ke
 out of model-facing tool arguments and browser code.
 
 The default decision model is `jev-latest`. Pass `model` to select an available
-Jev version. With `smartModel`, `model` identifies the **decision model**;
+Jev version. With `autoModel`, `model` identifies the **decision model**;
 `options` identifies the LLMs that Jev chooses between. Those LLMs still require
 their normal [model authentication](../agent-config).
 
 ## Ask typed questions
 
 ```ts
-import { decide } from "@eve/typesafe";
+import { decide } from "eve/experimental/typesafe";
 
 const result = await decide({
   state: {
@@ -82,7 +83,7 @@ not generate arbitrary strings, code, or unrestricted JSON Schema output.
 ## Give an agent the decision tool
 
 ```ts title="agent/tools/decide.ts"
-import { decisionTool } from "@eve/typesafe";
+import { decisionTool } from "eve/experimental/typesafe";
 
 export default decisionTool();
 ```
@@ -97,10 +98,10 @@ request. For recurring business decisions, wrap `decide` in a purpose-specific
 
 ```ts title="agent/agent.ts"
 import { defineAgent } from "eve";
-import { smartModel } from "@eve/typesafe";
+import { autoModel } from "eve/experimental/typesafe";
 
 export default defineAgent({
-  model: smartModel({
+  model: autoModel({
     options: [
       ["openai/gpt-5.6-sol", "Difficult reasoning and ambiguous engineering tasks"],
       ["openai/gpt-5.6-luna", "Routine tasks where fast completion matters"],
@@ -116,7 +117,7 @@ Use model IDs available to your provider account. Descriptions supply the routin
 criteria; Jev does not look up current model prices or capabilities. The threshold
 above is an example, not a universal setting. Evaluate it against your tasks.
 
-`smartModel` returns an ordinary [dynamic model definition](./dynamic-capabilities).
+`autoModel` returns an ordinary [dynamic model definition](./dynamic-capabilities).
 It reads the first `step.started` context, chooses once per turn, and stores the
 result in [session state](../concepts/state). Later tool-loop steps reuse the
 selection without another Jev call. `scope: "session"` retains the initial model
@@ -126,7 +127,7 @@ which is why the helper selects at the first step instead.
 Use the same helper in a statically authored declared subagent's `agent.ts`, with
 `scope: "session"` when it should retain its initial model. Each child receives its
 own prompt and state. A parent-side dynamic subagent resolver cannot return a
-configuration containing `smartModel`: returned subagent configurations require
+configuration containing `autoModel`: returned subagent configurations require
 a static model. See [subagents](../subagents).
 
 ### Evidence and eligibility
@@ -171,19 +172,19 @@ its failure fails selection. Use it for your telemetry without confusing Jev
 usage with the selected LLM's usage.
 
 Persisted selections survive step boundaries. A crash before persistence can
-repeat inference and billing; the package does not promise exactly-once requests.
+repeat inference and billing; eve does not promise exactly-once requests.
 
 ## Limits and transport options
 
-| Setting         | Behavior                                                                                                                                                                                                                                                         |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `timeoutMs`     | Total deadline, including credential lookup, retries, and body reads. Default: 5000 ms for `decide`/`decisionTool`, 1000 ms for `smartModel`. Range: 1–60000 ms. Router state projection is included; the observation callback is outside the provider deadline. |
-| `maxRetries`    | Additional attempts for connection failures, HTTP 408, 429, and 5xx, including 529. Default: one for decisions/tools, zero for routing. Maximum: two. Retry headers are honored within the deadline.                                                             |
-| `signal`        | Caller cancellation for `decide`. The tool and router use eve's active cancellation signal.                                                                                                                                                                      |
-| `fetch`         | Trusted server-side fetch override for transport configuration and deterministic tests. The endpoint remains `https://api.typesafe.ai/v1/systemone`; redirects are rejected.                                                                                     |
-| Request limits  | 1–64 questions, 128 KiB of serialized JSON, 16 nesting levels, and 20000 traversed values. These are package limits, not advertised TypeSafe quotas.                                                                                                             |
-| Question limits | Prompts: 8192 characters. Descriptions: 4096 characters. Choice: 1–255 options. Score: 2–10 levels. `smartModel`: 1–254 unique model IDs, reserving one option for no-fit.                                                                                       |
-| Response limit  | 1 MiB, with answer keys, types, option membership, probability distributions, confidence, score bounds, and usage validated.                                                                                                                                     |
+| Setting         | Behavior                                                                                                                                                                                                                                                        |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `timeoutMs`     | Total deadline, including credential lookup, retries, and body reads. Default: 5000 ms for `decide`/`decisionTool`, 1000 ms for `autoModel`. Range: 1–60000 ms. Router state projection is included; the observation callback is outside the provider deadline. |
+| `maxRetries`    | Additional attempts for connection failures, HTTP 408, 429, and 5xx, including 529. Default: one for decisions/tools, zero for routing. Maximum: two. Retry headers are honored within the deadline.                                                            |
+| `signal`        | Caller cancellation for `decide`. The tool and router use eve's active cancellation signal.                                                                                                                                                                     |
+| `fetch`         | Trusted server-side fetch override for transport configuration and deterministic tests. The endpoint remains `https://api.typesafe.ai/v1/systemone`; redirects are rejected.                                                                                    |
+| Request limits  | 1–64 questions, 128 KiB of serialized JSON, 16 nesting levels, and 20000 traversed values. These are eve limits, not advertised TypeSafe quotas.                                                                                                                |
+| Question limits | Prompts: 8192 characters. Descriptions: 4096 characters. Choice: 1–255 options. Score: 2–10 levels. `autoModel`: 1–254 unique model IDs, reserving one option for no-fit.                                                                                       |
+| Response limit  | 1 MiB, with answer keys, types, option membership, probability distributions, confidence, score bounds, and usage validated.                                                                                                                                    |
 
 `DecisionError` exposes a safe `code` and optional HTTP `status`. Codes are
 `configuration`, `input`, `authentication`, `request`, `unavailable`, `timeout`,

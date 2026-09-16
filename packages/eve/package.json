@@ -437,6 +437,11 @@
       "types": "./dist/src/self-modification/config.d.ts",
       "import": "./dist/src/self-modification/config.js",
       "default": "./dist/src/self-modification/config.js"
+    },
+    "./experimental/typesafe": {
+      "types": "./dist/src/public/experimental/typesafe/index.d.ts",
+      "import": "./dist/src/public/experimental/typesafe/index.js",
+      "default": "./dist/src/public/experimental/typesafe/index.js"
     }
   },
   "publishConfig": {
