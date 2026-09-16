@@ -1,5 +1,14 @@
 # eve
 
+## 0.57.1
+
+### Patch Changes
+
+- 987c3a0: Add development commands to generated hostless workspace services so `vercel dev --local` can start every agent. Default `defineWorkspaceAgent` transports route through the local Vercel service graph without deployment credentials.
+- 0fa8916: Add guided Microsoft Teams setup through `eve add channel/teams`. The flow delegates app creation, installation, and Activity routing to the Vercel Connect CLI, then scaffolds the Connect-backed channel.
+- fd9a007: Reorganize the `eve dev` command implementation without changing its behavior.
+- 16e11f9: Prevent multiline setup prompts, including the Vercel project-link question shown by `/add`, from being duplicated into TUI scrollback during repaints.
+
 ## 0.57.0
 
 ### Minor Changes
