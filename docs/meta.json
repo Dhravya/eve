@@ -21,6 +21,7 @@
     "---Integrate---",
     "install-integrations",
     "extensions",
+    "guides/typesafe",
     "guides/remote-agents",
     "protocols",
     "guides/frontend",

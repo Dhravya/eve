@@ -92,6 +92,7 @@ export function createExecutionNodeStep(input: CreateExecutionNodeStepInput): St
       : createRuntimeDynamicModelEventDispatcher(
           input.modelResolutionScope,
           input.node.turnAgent.dynamicModel,
+          input.abortSignal,
         );
   const tools = createNodeHarnessTools({ node: input.node });
   const instrumentation = input.instrumentation;
@@ -167,9 +168,11 @@ function createRuntimeModelResolver(
 function createRuntimeDynamicModelEventDispatcher(
   scope: RuntimeModelResolutionScope,
   dynamicModel: NonNullable<ResolvedRuntimeAgentNode["turnAgent"]["dynamicModel"]>,
+  abortSignal: AbortSignal | undefined,
 ): NonNullable<Parameters<typeof createToolLoopHarness>[0]["dispatchDynamicModelEvent"]> {
   return (input) =>
     dispatchDynamicModelEvent({
+      abortSignal,
       ctx: input.ctx,
       dynamicModel,
       event: input.event,

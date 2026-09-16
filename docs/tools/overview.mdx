@@ -6,6 +6,9 @@ url: /tools
 
 A tool is a typed action the agent can call, such as hitting an API, running a query, or writing a file. Define a tool when you implement the action in code you control. To give the model tools published by an external MCP or OpenAPI service, use a [connection](/docs/connections) instead. Authored tools run in your app runtime with full access to `process.env`, not in the [sandbox](/docs/sandbox).
 
+Use the [`@eve/typesafe` decision tool](./guides/typesafe#give-an-agent-the-decision-tool)
+to let an agent batch typed judgments over shared evidence.
+
 ## Define a tool
 
 The filename is the tool name the model sees. A file at `agent/tools/get_weather.ts` is exposed as `get_weather`.
