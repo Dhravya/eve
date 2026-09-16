@@ -71,6 +71,10 @@ The result also includes `model`, `usage.inputTokens`, `usage.outputTokens`, and
 `durationMs`. Retain uncertainty when composing decisions. A valid output is not
 proof that a judgment is correct or that an action is authorized.
 
+A score is the probability-weighted mean of its level indices. eve rejects
+responses whose score differs from that mean by more than 1% of the level range,
+allowing for rounded provider values.
+
 Each request evaluates all questions independently against the same state. Batch
 questions about one document together. Use bounded concurrent requests for
 unrelated documents; there is no implicit cross-session batching. Questions
@@ -147,9 +151,11 @@ require an explicit eligibility callback; Jev does not inspect their bytes.
 
 If no option is eligible, or a retained model becomes ineligible, routing fails.
 It does not switch models silently in the middle of a turn. Steering within the
-same turn retains the current route; the next turn can reconsider it. Switching
-models between turns can lose prompt-cache savings, so compare total task cost
-with a static-model baseline.
+same turn retains the current route; the next turn can reconsider it with the
+default turn scope. For `scope: "session"`, start a new session or update the
+routing policy when the retained model becomes ineligible. Switching models
+between turns can lose prompt-cache savings, so compare total task cost with a
+static-model baseline.
 
 ### Uncertainty, errors, and observation
 
@@ -190,6 +196,10 @@ repeat inference and billing; eve does not promise exactly-once requests.
 `configuration`, `input`, `authentication`, `request`, `unavailable`, `timeout`,
 `response`, and `routing`. Provider response bodies and transport exceptions are
 not copied into these errors. Caller cancellation preserves the abort reason.
+
+Arrays must be dense JSON arrays: sparse slots and `undefined` values are
+rejected. Array slots count toward the request's traversal limit before
+serialization.
 
 For TypeSafe's current model availability, primitives, and service details, see
 its [documentation](https://docs.typesafe.ai/introduction).

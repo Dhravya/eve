@@ -55,6 +55,12 @@ export function boundedJson(value: unknown): string {
     )
       fail();
     ancestors.add(container);
+    if (Array.isArray(item)) {
+      if (item.length > 20_000 - nodes) fail();
+      for (let index = 0; index < item.length; index++) {
+        if (!Object.hasOwn(item, index)) fail();
+      }
+    }
     for (const [key, child] of Object.entries(container)) {
       characters += key.length;
       visit(child, depth + 1);
@@ -215,11 +221,15 @@ export function parseResult<Q extends DecisionQuestions>(
         )
       )
         fail();
+      const expectedScore = keys.reduce((sum, key) => sum + Number(key) * probabilities[key]!, 0);
+      // Allow the distribution's 1% rounding tolerance, scaled to the level range.
+      const scoreTolerance = 0.01 * (question.levels.length - 1);
       if (
         typeof answer.score !== "number" ||
         !Number.isFinite(answer.score) ||
         answer.score < 0 ||
-        answer.score > question.levels.length - 1
+        answer.score > question.levels.length - 1 ||
+        Math.abs(answer.score - expectedScore) > scoreTolerance
       )
         fail();
       return [

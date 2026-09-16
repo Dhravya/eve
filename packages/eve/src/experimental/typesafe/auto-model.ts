@@ -200,7 +200,9 @@ export function autoModel<const T extends readonly AutoModelOption[]>(
           if (!allowed.some(([model]) => model === previous.decision.model))
             throw new DecisionError(
               "routing",
-              "The retained model no longer meets this turn's requirements. Start a new turn or update the routing policy.",
+              settings.scope === "session"
+                ? "The retained model no longer meets this session's requirements. Start a new session or update the routing policy."
+                : "The retained model no longer meets this turn's requirements. Start a new turn or update the routing policy.",
             );
           return previous.decision.model;
         }

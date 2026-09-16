@@ -1,4 +1,4 @@
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { DecisionAnswer, DecisionRequest, DecisionResult } from "./types.js";
 import { boundedJson, parseResult, validateInput, wireQuestions } from "./validation.js";
@@ -56,6 +56,33 @@ describe("decision contracts", () => {
       type: "noul",
       instructions: "Was it reproduced?",
     });
+  });
+
+  it.each([
+    // eslint-disable-next-line unicorn/no-new-array -- Sparse slots are the regression under test.
+    { value: new Array(1) },
+    // eslint-disable-next-line unicorn/no-new-array -- Sparse slots are the regression under test.
+    { value: new Array(1_000_000) },
+    { value: [null, Array.from({ length: 20_000 }, () => null)] },
+  ])("rejects sparse or over-budget arrays before serialization", ({ value }) => {
+    const stringify = vi.spyOn(JSON, "stringify");
+    let error: unknown;
+    let calls: number;
+    try {
+      boundedJson(value);
+    } catch (caught) {
+      error = caught;
+    } finally {
+      calls = stringify.mock.calls.length;
+      stringify.mockRestore();
+    }
+    expect(error).toMatchObject({ code: "input" });
+    expect(calls).toBe(0);
+  });
+
+  it("accepts dense arrays within the value budget", () => {
+    const value = Array.from({ length: 19_999 }, () => null);
+    expect(boundedJson(value)).toBe(JSON.stringify(value));
   });
 
   it.each([
@@ -135,5 +162,41 @@ describe("decision contracts", () => {
     expect(() =>
       parseResult({ ...value, answers: { route: value.answers.route } }, questions, 0),
     ).toThrow();
+  });
+
+  it("rejects scores that contradict the distribution", () => {
+    const value = response();
+    value.answers.severity.score = 0;
+    value.answers.severity.probabilities = { "0": 0, "1": 1 };
+    expect(() => parseResult(value, questions, 0)).toThrow("invalid decision response");
+  });
+
+  it.each([0.745, 0.755])(
+    "accepts rounded scores (%s) and preserves the provider value",
+    (score) => {
+      const value = response();
+      value.answers.severity.score = score;
+      expect(parseResult(value, questions, 0).answers.severity.value).toBe(score);
+    },
+  );
+
+  it("scales rounding tolerance to the score range", () => {
+    const levels = ["None", "Low", "Medium", "High", "Critical"];
+    const value = {
+      ...response(),
+      answers: {
+        severity: {
+          type: "score",
+          score: 3.01,
+          probabilities: { "0": 0.25, "1": 0, "2": 0, "3": 0, "4": 0.75 },
+          legend: Object.fromEntries(levels.map((level, index) => [index, level])),
+          confidence: 0.6,
+        },
+      },
+    };
+    const requested = { severity: { type: "score", prompt: "How severe?", levels } } as const;
+    expect(parseResult(value, requested, 0).answers.severity.value).toBe(3.01);
+    value.answers.severity.score = 3.05;
+    expect(() => parseResult(value, requested, 0)).toThrow("invalid decision response");
   });
 });

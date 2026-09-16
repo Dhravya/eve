@@ -68,9 +68,9 @@ export interface DecisionConfig {
   readonly apiKey?: string | (() => string | Promise<string>);
   /** Defaults to jev-latest. Pin an account-supported version for reproducible evaluations. */
   readonly model?: string;
-  /** Total deadline, including credential lookup, retries, and response body. Default: 5000 ms. */
+  /** Total deadline, including credential lookup, retries, and response body. Defaults to 5000 ms for decide/decisionTool and 1000 ms for autoModel. */
   readonly timeoutMs?: number;
-  /** Retries after the initial attempt, within the total deadline. Default: 1; maximum: 2. */
+  /** Retries after the initial attempt, within the total deadline. Defaults to 1 for decide/decisionTool and 0 for autoModel; maximum: 2. */
   readonly maxRetries?: number;
   /** Trusted server-side transport override, useful for deterministic tests. */
   readonly fetch?: typeof globalThis.fetch;

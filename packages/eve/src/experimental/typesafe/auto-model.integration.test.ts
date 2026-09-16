@@ -211,6 +211,30 @@ describe("autoModel", () => {
     await expect(handler(event(), context("x".repeat(16_001)))).rejects.toThrow("16000");
   });
 
+  it.each(["turn", "session"] as const)(
+    "gives scope-aware recovery when a retained %s model becomes ineligible",
+    async (scope) => {
+      let smallEnabled = true;
+      const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => result());
+      const handler = autoModel({
+        options,
+        scope,
+        apiKey: "test",
+        fetch,
+        eligible: (model) => model !== "openai/small" || smallEnabled,
+      }).events["step.started"]!;
+      await handler(event(), context());
+      smallEnabled = false;
+      await expect(
+        handler(event(scope === "session" ? "turn_2" : "turn_1"), context()),
+      ).rejects.toMatchObject({
+        code: "routing",
+        message: `The retained model no longer meets this ${scope}'s requirements. Start a new ${scope} or update the routing policy.`,
+      });
+      expect(fetch).toHaveBeenCalledOnce();
+    },
+  );
+
   it("checks nontext steering before reusing a cached route", async () => {
     const handler = autoModel({ options, apiKey: "test", fetch: async () => result() }).events[
       "step.started"
