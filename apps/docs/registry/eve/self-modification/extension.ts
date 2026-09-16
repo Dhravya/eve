@@ -1,3 +1,3 @@
 import selfModification from "eve/self-modification";
 
-export default selfModification();
+export default selfModification({});
