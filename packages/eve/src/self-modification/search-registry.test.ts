@@ -126,7 +126,7 @@ describe("parseRegistryIndex", () => {
       parseRegistryIndex({
         items: [
           { name: "eve/self-modification" },
-          { name: "experimental/self-modification", meta: { eve: { hidden: true } } },
+          { name: "experimental/self-modification/prod", meta: { eve: { hidden: true } } },
         ],
       }).map((entry) => entry.address),
     ).toEqual(["eve/self-modification"]);

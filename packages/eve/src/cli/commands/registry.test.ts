@@ -979,7 +979,7 @@ describe("registry commands", () => {
             JSON.stringify({
               items: [
                 { name: "eve/self-modification" },
-                { name: "experimental/self-modification", meta: { eve: { hidden: true } } },
+                { name: "experimental/self-modification/prod", meta: { eve: { hidden: true } } },
               ],
             }),
           ),
@@ -994,8 +994,8 @@ describe("registry commands", () => {
         },
         {
           registry: "https://eve.dev/r/registry.json",
-          name: "experimental/self-modification",
-          addCommandArgument: "https://eve.dev/r/experimental/self-modification.json",
+          name: "experimental/self-modification/prod",
+          addCommandArgument: "https://eve.dev/r/experimental/self-modification/prod.json",
         },
       ],
       pagination: { total: 2, offset: 0, limit: 2, hasMore: false },

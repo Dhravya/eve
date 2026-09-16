@@ -23,14 +23,7 @@
                 }
               ]
             }
-          },
-          "setup": [
-            {
-              "package": "eve",
-              "bin": "eve",
-              "args": ["integration", "setup", "self-modification"]
-            }
-          ]
+          }
         }
       },
       "files": [
@@ -52,14 +45,15 @@
       ]
     },
     {
-      "name": "experimental/self-modification",
+      "name": "experimental/self-modification/prod",
       "type": "registry:item",
-      "title": "Self-modification (Experimental)",
-      "description": "Add an experimental source editing subagent with local edits and official registry installation.",
+      "title": "Self-modification production",
+      "description": "Add a source editing subagent with local edits and deployed draft pull requests.",
       "dependencies": ["just-bash", "@vercel/connect"],
       "meta": {
         "eve": {
           "hidden": true,
+          "requires": ">=0.54.4",
           "install": {
             "pnpm": {
               "buildScripts": [
@@ -76,29 +70,29 @@
             {
               "package": "eve",
               "bin": "eve",
-              "args": ["integration", "setup", "self-modification"]
+              "args": ["integration", "setup", "self-modification-production"]
             }
           ]
         }
       },
       "files": [
         {
-          "path": "registry/eve/self-modification/config.ts",
+          "path": "registry/eve/self-modification-production/config.ts",
           "type": "registry:file",
           "target": "agent/subagents/self-modification/config.ts"
         },
         {
-          "path": "registry/eve/self-modification/agent.ts",
+          "path": "registry/eve/self-modification-production/agent.ts",
           "type": "registry:file",
           "target": "agent/subagents/self-modification/agent.ts"
         },
         {
-          "path": "registry/eve/self-modification/sandbox.ts",
+          "path": "registry/eve/self-modification-production/sandbox.ts",
           "type": "registry:file",
           "target": "agent/subagents/self-modification/sandbox.ts"
         },
         {
-          "path": "registry/eve/self-modification/extension.ts",
+          "path": "registry/eve/self-modification-production/extension.ts",
           "type": "registry:file",
           "target": "agent/subagents/self-modification/extensions/selfmod.ts"
         }
