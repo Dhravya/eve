@@ -688,17 +688,6 @@ describe("recordTaskInputRequestStep", () => {
               taskInboxToken: "task-token",
               createdByTurnId: "turn-parent",
               dispatchContext: { auth: { current: null, initiator: null } },
-              executor: {
-                data: {
-                  address: {
-                    continuationToken: "child-token",
-                    kind: "agent/local",
-                    sessionId: "child-session",
-                  },
-                  identity: { id: "agent-1", name: "research", nodeId: "node-1" },
-                },
-                kind: "subagent",
-              },
               metadata: { kind: "tool", name: "research" },
               taskId: "task-1",
               taskRunId: "run-1",
@@ -711,19 +700,6 @@ describe("recordTaskInputRequestStep", () => {
     installSessionStoreMocks([session]);
     vi.mocked(readLatestTaskView).mockResolvedValue({
       metadata: { kind: "tool", name: "research" },
-      executor: {
-        binding: {
-          data: {
-            address: {
-              continuationToken: "child-token",
-              kind: "agent/local",
-              sessionId: "child-session",
-            },
-            identity: { id: "agent-1", name: "research", nodeId: "node-1" },
-          },
-          kind: "subagent",
-        },
-      },
       inputRequests: [taskRequest.request],
       status: "input_required",
       taskId: "task-1",
@@ -1050,7 +1026,6 @@ describe("turnStep", () => {
     const task = {
       createdByTurnId: "turn_0",
       dispatchContext: { auth: { current: null, initiator: null } },
-      executor: { data: {}, kind: "workflow-tool" },
       metadata: { kind: "report", name: "daily_report" },
       taskId: "task_report",
       taskInboxToken: "task-token",
@@ -2584,7 +2559,6 @@ describe("turnStep", () => {
               createdByStepIndex: 0,
               createdByTurnId: "turn_0",
               dispatchContext: { auth: { current: null, initiator: null } },
-              executor: { data: {}, kind: "workflow-tool" },
               metadata: { kind: "report-probe", name: "report_probe" },
               taskId: "task_1",
               taskInboxToken: "task-token",
