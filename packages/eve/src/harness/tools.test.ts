@@ -150,6 +150,7 @@ describe("buildToolSet", () => {
           execution: "background",
           inputSchema: jsonSchema({ type: "object" }),
           name: "background_work",
+          workflowId: "workflow//test//background_work",
         },
       ],
     ]);

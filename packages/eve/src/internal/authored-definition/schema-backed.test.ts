@@ -30,24 +30,6 @@ describe("normalizeToolDefinition", () => {
     expect(typeof entry.definition.execute).toBe("function");
   });
 
-  it("preserves the background execution discriminator", () => {
-    const tool = defineTool({
-      description: "Starts an export.",
-      execution: "background",
-      inputSchema: z.object({ exportId: z.string() }),
-      async *execute(input) {
-        yield { exportId: input.exportId };
-        return { exportId: input.exportId };
-      },
-    });
-
-    const entry = normalizeToolDefinition(tool, FAILURE_MESSAGE);
-
-    expect(entry.kind).toBe("tool");
-    if (entry.kind !== "tool") throw new Error("expected tool kind");
-    expect(entry.definition.execution).toBe("background");
-  });
-
   it("normalizes a tool with a Zod 3 input schema", () => {
     const tool = defineTool({
       description: "Gets weather for a city.",

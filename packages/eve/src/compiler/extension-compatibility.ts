@@ -22,8 +22,8 @@ interface ExtensionCapabilityContract {
 const EXTENSION_CAPABILITY_CONTRACTS = {
   extension: { current: 1, supported: [1], dropped: {} },
   tool: {
-    current: 44,
-    supported: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 28, 29, 30, 31, 32, 34, 35, 44],
+    current: 45,
+    supported: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 29, 30, 31, 32, 34, 35, 45],
     dropped: {
       14: "TaskExec.delegated was removed; migrate to workflow-backed background tools",
       15: "TaskExec replaces stageEffect with send",
@@ -39,6 +39,7 @@ const EXTENSION_CAPABILITY_CONTRACTS = {
       25: "TaskExec.delegated was removed; migrate to workflow-backed background tools",
       26: "Background tools now use task yield descriptors",
       27: "TaskExec.delegated was removed; migrate to workflow-backed background tools",
+      28: "background execution was removed from defineTool; use defineWorkflowTool for durable background work",
       33: "ctx.agent now accepts the subagent name as its first argument, derives invocation identity internally, and infers structured output types",
       36: "experimental_workflow and eve/tools/workflow were removed; migrate to the workflow factory from eve/tools/workflow",
       37: "experimental_workflow and eve/tools/workflow were removed; migrate to the workflow factory from eve/tools/workflow",
@@ -48,13 +49,13 @@ const EXTENSION_CAPABILITY_CONTRACTS = {
       41: "workflow no longer accepts agents and its options argument is optional; use workflow() or workflow({ maxSubagents })",
       42: "Legacy session history migration was removed; user-role messages require current provenance kinds.",
       43: "Legacy session history migration was removed; user-role messages require current provenance kinds.",
+      44: "background execution and TaskExec were removed from defineTool; use defineWorkflowTool for durable background work",
     },
   },
   dynamicTool: {
-    current: 41,
+    current: 42,
     supported: [
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 28, 29, 30, 31, 32,
-      33, 41,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 31, 32, 33, 42,
     ],
     dropped: {
       21: "Message and reasoning append events now expose deltas instead of cumulative snapshots.",
@@ -63,6 +64,9 @@ const EXTENSION_CAPABILITY_CONTRACTS = {
       25: "TaskExec.delegated was removed; migrate to workflow-backed background tools",
       26: "Background tools now use task yield descriptors",
       27: "TaskExec.delegated was removed; migrate to workflow-backed background tools",
+      28: "background dynamic tools were removed; use a static defineWorkflowTool for durable background work",
+      29: "background dynamic tools were removed; use a static defineWorkflowTool for durable background work",
+      30: "background dynamic tools were removed; use a static defineWorkflowTool for durable background work",
       34: "Legacy session history migration was removed; user-role messages require current provenance kinds.",
       35: "workflowMaxSubagents was removed with experimental_workflow; configure generated-program limits with the workflow factory",
       36: "workflowMaxSubagents was removed with experimental_workflow; configure generated-program limits with the workflow factory",
@@ -70,6 +74,7 @@ const EXTENSION_CAPABILITY_CONTRACTS = {
       38: "workflowMaxSubagents was removed with experimental_workflow; configure generated-program limits with the workflow factory",
       39: "Legacy session history migration was removed; user-role messages require current provenance kinds.",
       40: "Legacy session history migration was removed; user-role messages require current provenance kinds.",
+      41: "background dynamic tools were removed; use a static defineWorkflowTool for durable background work",
     },
   },
   channel: {
