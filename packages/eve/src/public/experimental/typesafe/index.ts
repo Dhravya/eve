@@ -4,6 +4,7 @@ export {
   autoModel,
   type AutoModelConfig,
   type AutoModelDecision,
+  type AutoModelFallback,
   type AutoModelOption,
 } from "#experimental/typesafe/auto-model.js";
 export { DecisionError, type DecisionErrorCode } from "#experimental/typesafe/errors.js";

@@ -101,8 +101,7 @@ describe("autoModel", () => {
       options,
       apiKey: "test",
       fetch: async () => result("openai/small", 0.2),
-      minConfidence: 0.8,
-      fallback: "openai/large",
+      fallback: { model: "openai/large", minConfidence: 0.8 },
       onDecision,
     }).events["step.started"]!;
     expect(await handler(event(), context())).toBe("openai/large");
@@ -125,8 +124,7 @@ describe("autoModel", () => {
       options,
       apiKey: "test",
       fetch: async () => result("outside"),
-      fallback: "openai/large",
-      onError: "fallback",
+      fallback: { model: "openai/large", onUnavailable: true },
     });
     await expect(fabricated.events["step.started"]!(event(), context())).rejects.toMatchObject({
       code: "response",
@@ -141,8 +139,7 @@ describe("autoModel", () => {
       options,
       apiKey: "test",
       fetch,
-      fallback: "openai/large",
-      onError: "fallback",
+      fallback: { model: "openai/large", onUnavailable: true },
     } as const;
     const handler = autoModel(config).events["step.started"]!;
     expect(await handler(event(), context())).toBe("openai/large");
@@ -160,8 +157,7 @@ describe("autoModel", () => {
       options,
       apiKey: "test",
       fetch,
-      fallback: "openai/large",
-      onError: "fallback",
+      fallback: { model: "openai/large", onUnavailable: true },
     }).events["step.started"]!;
     const pending = handler(event(), { ...context(), abortSignal: controller.signal });
     await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
@@ -176,8 +172,7 @@ describe("autoModel", () => {
       apiKey: "test",
       state: () => new Promise(() => {}),
       timeoutMs: 10,
-      fallback: "openai/large",
-      onError: "fallback",
+      fallback: { model: "openai/large", onUnavailable: true },
     }).events["step.started"]!;
     expect(await handler(event(), context())).toBe("openai/large");
   });
@@ -267,7 +262,10 @@ describe("autoModel", () => {
     expect(() => autoModel({ options: [] })).toThrow();
     expect(() => autoModel({ options: [[42, "Routine work"]] } as never)).toThrow();
     expect(() => autoModel({ options: [options[0], options[0]] })).toThrow();
-    expect(() => autoModel({ options, minConfidence: 0.8 })).toThrow();
-    expect(() => autoModel({ options, fallback: "outside" } as never)).toThrow();
+    expect(() => autoModel({ options, fallback: { model: "outside" } } as never)).toThrow();
+    expect(() =>
+      autoModel({ options, fallback: { model: "openai/large", minConfidence: 2 } }),
+    ).toThrow();
+    expect(() => autoModel({ options, decisionModel: "" })).toThrow();
   });
 });

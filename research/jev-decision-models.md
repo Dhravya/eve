@@ -343,21 +343,21 @@ export const routedModel = autoModel({
     ["openai/gpt-5.6-sol", "Difficult or ambiguous tasks"],
     ["openai/gpt-5.6-luna", "Routine tasks with clear requirements"],
   ],
-  minConfidence: 0.8,
-  fallback: "openai/gpt-5.6-sol",
-  onError: "fallback",
+  fallback: { model: "openai/gpt-5.6-sol", minConfidence: 0.8, onUnavailable: true },
   timeoutMs: 1000,
   scope: "turn",
 });
 ```
 
-The threshold and deadline above are illustrative tuning values. A fallback must
-be one of the eligible configured options. `fallback` handles low confidence or
-no-fit; `onError: "fallback"` separately opts into fallback on transient transport
-failure or deadline expiry. Invalid configuration, missing credentials, and
-invalid provider responses remain actionable errors. `minConfidence` requires a
-fallback. Turn cancellation always propagates and never selects a fallback.
-No branch may return `null` or invent confidence for a fallback result.
+The threshold and deadline above are illustrative tuning values. The fallback
+`model` must be one of the eligible configured options and handles no-fit
+answers; `minConfidence` extends it to low-confidence answers and
+`onUnavailable` to transient transport failure or deadline expiry. Grouping
+these under one `fallback` object makes the dependency structural: there is no
+threshold or outage policy without a model to fall back to. Invalid
+configuration, missing credentials, and invalid provider responses remain
+actionable errors. Turn cancellation always propagates and never selects a
+fallback. No branch may return `null` or invent confidence for a fallback result.
 
 Cache the successful selection or explicit transient-failure fallback for the
 turn so an outage does not trigger another router attempt on every step. Record

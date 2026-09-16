@@ -21,10 +21,11 @@ approval. Keys are read when a request runs, so agent compilation does not requi
 a key. You can also pass `apiKey: () => loadYourSecret()` to any helper. Keep keys
 out of model-facing tool arguments and browser code.
 
-The default decision model is `jev-latest`. Pass `model` to select an available
-Jev version. With `autoModel`, `model` identifies the **decision model**;
-`options` identifies the LLMs that Jev chooses between. Those LLMs still require
-their normal [model authentication](../agent-config).
+The default decision model is `jev-latest`. Pass `model` to `decide` or
+`decisionTool` to select an available Jev version. `autoModel` calls the same
+setting `decisionModel`, because its `options` are the LLMs that Jev chooses
+between. Those LLMs still require their normal
+[model authentication](../agent-config).
 
 ## Ask typed questions
 
@@ -110,9 +111,7 @@ export default defineAgent({
       ["openai/gpt-5.6-sol", "Difficult reasoning and ambiguous engineering tasks"],
       ["openai/gpt-5.6-luna", "Routine tasks where fast completion matters"],
     ],
-    minConfidence: 0.8,
-    fallback: "openai/gpt-5.6-sol",
-    onError: "fallback",
+    fallback: { model: "openai/gpt-5.6-sol", minConfidence: 0.8, onUnavailable: true },
   }),
 });
 ```
@@ -160,15 +159,18 @@ static-model baseline.
 ### Uncertainty, errors, and observation
 
 The options-only form uses the winning option and fails if Jev selects its
-internal no-fit option. `fallback` must name a configured, eligible option and
-handles no-fit answers. `minConfidence` additionally handles answers below a
-threshold and requires a fallback.
+internal no-fit option. `fallback` is one object that describes the whole
+policy:
 
-`onError: "fallback"` separately allows fallback on transient service failures
-or deadline expiry. Authentication, invalid configuration, rejected requests,
-invalid responses, and cancellation do not fall back. Otherwise errors propagate
-through eve's normal dynamic model failure path. A fallback is retained for the
-scope, so an outage does not cause another attempt on every step.
+- `model` must name a configured, eligible option. It handles no-fit answers.
+- `minConfidence` additionally treats answers below the threshold as no-fit.
+- `onUnavailable: true` also falls back on transient service failures or
+  deadline expiry.
+
+Authentication, invalid configuration, rejected requests, invalid responses, and
+cancellation never fall back. Those errors propagate through eve's normal dynamic
+model failure path. A fallback is retained for the scope, so an outage does not
+cause another attempt on every step.
 
 `onDecision(decision)` runs for fresh selections, including fallbacks. It receives
 `model`, `source` (`decision`, `uncertainty`, or `unavailable`), and `durationMs`.
@@ -195,7 +197,9 @@ repeat inference and billing; eve does not promise exactly-once requests.
 `DecisionError` exposes a safe `code` and optional HTTP `status`. Codes are
 `configuration`, `input`, `authentication`, `request`, `unavailable`, `timeout`,
 `response`, and `routing`. Provider response bodies and transport exceptions are
-not copied into these errors. Caller cancellation preserves the abort reason.
+never copied into `message`; the underlying transport or parsing failure is
+attached as the standard `cause` for server-side logs. Caller cancellation
+preserves the abort reason.
 
 Arrays must be dense JSON arrays: sparse slots and `undefined` values are
 rejected. Array slots count toward the request's traversal limit before

@@ -24,19 +24,27 @@ export interface AutoModelDecision {
   readonly durationMs: number;
 }
 
+/** Explicit fallback policy. Without one, no-fit, uncertain, and failed selections throw. */
+export interface AutoModelFallback<TModel extends string = string> {
+  /** A configured option used when Jev cannot select a model. */
+  readonly model: TModel;
+  /** Treat answers below this distribution concentration as uncertain. */
+  readonly minConfidence?: number;
+  /** Also fall back on transient service failures and deadline expiry. Default: false. */
+  readonly onUnavailable?: boolean;
+}
+
 /** Choose an allowlisted language model at the first step of a turn or session. */
 export interface AutoModelConfig<
   T extends readonly AutoModelOption[] = readonly AutoModelOption[],
-> extends DecisionConfig {
+> extends Omit<DecisionConfig, "model"> {
   readonly options: T;
+  /** Jev model that performs the selection. Defaults to jev-latest. */
+  readonly decisionModel?: string;
   /** Default: turn. A selection is reused across every step in its scope. */
   readonly scope?: "turn" | "session";
-  /** An explicitly configured option for no-fit and uncertain answers. */
-  readonly fallback?: T[number][0];
-  /** Optional distribution concentration threshold; requires fallback. */
-  readonly minConfidence?: number;
-  /** Default: throw. Only transient failures/timeouts can choose the fallback. */
-  readonly onError?: "throw" | "fallback";
+  /** Handles no-fit answers and, when configured, low confidence and transient failures. */
+  readonly fallback?: AutoModelFallback<T[number][0]>;
   /** Override the bounded recent-text evidence. The callback runs once per selection. */
   readonly state?: (
     ctx: DynamicResolveContext,
@@ -98,7 +106,8 @@ export function routingState(ctx: DynamicResolveContext): DecisionInput["state"]
 export function autoModel<const T extends readonly AutoModelOption[]>(
   config: AutoModelConfig<T>,
 ): DynamicSentinel<string> {
-  validateConfig(config);
+  const { decisionModel, fallback, ...transport } = config;
+  validateConfig({ ...transport, model: decisionModel });
   if (
     !Array.isArray(config.options) ||
     config.options.some(
@@ -132,18 +141,19 @@ export function autoModel<const T extends readonly AutoModelOption[]>(
   });
   if (
     (config.scope !== undefined && config.scope !== "turn" && config.scope !== "session") ||
-    (config.onError !== undefined && config.onError !== "throw" && config.onError !== "fallback") ||
-    (config.fallback !== undefined && !Object.hasOwn(candidates, config.fallback)) ||
-    (config.minConfidence !== undefined &&
-      (!Number.isFinite(config.minConfidence) ||
-        config.minConfidence < 0 ||
-        config.minConfidence > 1 ||
-        config.fallback === undefined)) ||
-    (config.onError === "fallback" && config.fallback === undefined)
+    (fallback !== undefined &&
+      (!object(fallback) ||
+        typeof fallback.model !== "string" ||
+        !Object.hasOwn(candidates, fallback.model) ||
+        (fallback.minConfidence !== undefined &&
+          (!Number.isFinite(fallback.minConfidence) ||
+            fallback.minConfidence < 0 ||
+            fallback.minConfidence > 1)) ||
+        (fallback.onUnavailable !== undefined && typeof fallback.onUnavailable !== "boolean")))
   )
     throw new DecisionError(
       "configuration",
-      "autoModel requires valid scope, confidence in [0, 1], and an allowlisted fallback for uncertainty or error policies.",
+      "autoModel requires a turn or session scope and a fallback naming a configured model with minConfidence in [0, 1].",
     );
   const settings = { ...config, options };
   const fingerprint = createHash("sha256")
@@ -151,10 +161,10 @@ export function autoModel<const T extends readonly AutoModelOption[]>(
       boundedJson({
         options,
         scope: settings.scope ?? "turn",
-        fallback: settings.fallback ?? null,
-        confidence: settings.minConfidence ?? null,
-        model: settings.model ?? "jev-latest",
-        onError: settings.onError ?? "throw",
+        fallback: fallback?.model ?? null,
+        confidence: fallback?.minConfidence ?? null,
+        model: decisionModel ?? "jev-latest",
+        onUnavailable: fallback?.onUnavailable ?? false,
         timeoutMs: settings.timeoutMs ?? 1000,
         maxRetries: settings.maxRetries ?? 0,
         state: settings.state?.toString() ?? null,
@@ -206,14 +216,13 @@ export function autoModel<const T extends readonly AutoModelOption[]>(
             );
           return previous.decision.model;
         }
-        const fallback = settings.fallback;
         const useFallback = (): string => {
-          if (fallback === undefined || !allowed.some(([model]) => model === fallback))
+          if (fallback === undefined || !allowed.some(([model]) => model === fallback.model))
             throw new DecisionError(
               "routing",
               "Jev could not select a model. Configure an eligible fallback or refine the model descriptions.",
             );
-          return fallback;
+          return fallback.model;
         };
         const started = performance.now();
         const controller = new AbortController();
@@ -237,7 +246,7 @@ export function autoModel<const T extends readonly AutoModelOption[]>(
           );
           const result = await decide({
             apiKey: settings.apiKey,
-            model: settings.model,
+            model: decisionModel,
             fetch: settings.fetch,
             maxRetries: settings.maxRetries ?? 0,
             timeoutMs: settings.timeoutMs ?? 1000,
@@ -257,7 +266,7 @@ export function autoModel<const T extends readonly AutoModelOption[]>(
           });
           const answer = result.answers.route;
           const uncertain =
-            answer.value === NO_FIT || answer.confidence < (settings.minConfidence ?? 0);
+            answer.value === NO_FIT || answer.confidence < (fallback?.minConfidence ?? 0);
           decision = {
             model: uncertain ? useFallback() : answer.value,
             source: uncertain ? "uncertainty" : "decision",
@@ -269,7 +278,7 @@ export function autoModel<const T extends readonly AutoModelOption[]>(
         } catch (error) {
           ctx.abortSignal?.throwIfAborted();
           if (
-            settings.onError !== "fallback" ||
+            fallback?.onUnavailable !== true ||
             !(error instanceof DecisionError) ||
             (error.code !== "timeout" && error.code !== "unavailable")
           )

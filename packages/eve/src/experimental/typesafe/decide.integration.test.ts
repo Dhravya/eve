@@ -137,13 +137,13 @@ describe("TypeSafe transport", () => {
     }
   });
 
-  it("retries a network failure but strips its internal message", async () => {
-    const fetch = vi
-      .fn<typeof globalThis.fetch>()
-      .mockRejectedValue(new Error("private hostname and token"));
+  it("keeps a network failure out of the message but retains it as cause", async () => {
+    const failure = new Error("private hostname and token");
+    const fetch = vi.fn<typeof globalThis.fetch>().mockRejectedValue(failure);
     await expect(decide({ ...base, fetch, maxRetries: 0 })).rejects.toMatchObject({
       code: "unavailable",
       message: "Could not reach TypeSafe. Retry the decision when the service is available.",
+      cause: failure,
     });
   });
 });

@@ -39,8 +39,8 @@ async function readResponse(response: Response, signal: AbortSignal): Promise<un
   }
   try {
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
-  } catch {
-    throw new DecisionError("response", "TypeSafe returned invalid JSON.");
+  } catch (cause) {
+    throw new DecisionError("response", "TypeSafe returned invalid JSON.", { cause });
   }
 }
 
@@ -87,9 +87,11 @@ export async function decide<const Q extends DecisionQuestions>(
         typeof request.apiKey === "function"
           ? await withSignal(Promise.resolve().then(request.apiKey), signal)
           : (request.apiKey ?? process.env.TYPESAFE_API_KEY);
-    } catch {
+    } catch (cause) {
       signal.throwIfAborted();
-      throw new DecisionError("authentication", "Could not resolve the TypeSafe API key.");
+      throw new DecisionError("authentication", "Could not resolve the TypeSafe API key.", {
+        cause,
+      });
     }
     if (typeof key !== "string" || key.trim().length === 0)
       throw new DecisionError(
@@ -124,13 +126,14 @@ export async function decide<const Q extends DecisionQuestions>(
           signal.throwIfAborted();
           return parseResult(payload, request.questions, performance.now() - started);
         }
-      } catch (error) {
+      } catch (cause) {
         signal.throwIfAborted();
-        if (error instanceof DecisionError) throw error;
+        if (cause instanceof DecisionError) throw cause;
         if (attempt === retries)
           throw new DecisionError(
             "unavailable",
             "Could not reach TypeSafe. Retry the decision when the service is available.",
+            { cause },
           );
       }
       if (response) {
@@ -140,20 +143,20 @@ export async function decide<const Q extends DecisionQuestions>(
           throw new DecisionError(
             "authentication",
             "TypeSafe rejected the API key. Check its access in the TypeSafe console.",
-            status,
+            { status },
           );
         const retryable = status === 408 || status === 429 || status >= 500;
         if (!retryable)
           throw new DecisionError(
             "request",
             "TypeSafe rejected the decision request. Check its model and question limits.",
-            status,
+            { status },
           );
         if (attempt === retries)
           throw new DecisionError(
             "unavailable",
             "TypeSafe is temporarily unavailable or rate limited. Retry later.",
-            status,
+            { status },
           );
       }
       await delay(retryDelay(response, attempt), undefined, { signal });
