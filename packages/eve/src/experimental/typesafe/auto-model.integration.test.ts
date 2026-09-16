@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { DynamicResolveContext } from "#dynamic/definition.js";
 
 import { autoModel } from "./auto-model.js";
+import { anthropic } from "#public/models/anthropic/index.js";
 
 import { ContextContainer } from "#context/container.js";
 import { deserializeContext, serializeContext } from "#context/serialize.js";
@@ -12,10 +13,10 @@ vi.mock("#context/container.js", async (importOriginal) => ({
   loadContext: () => runtime.state!,
 }));
 
-const options = [
-  ["openai/large", "Hard reasoning"],
-  ["openai/small", "Routine requests"],
-] as const;
+const options = {
+  "openai/large": "Hard reasoning",
+  "openai/small": "Routine requests",
+} as const;
 function context(text = "Alice requests a routine summary."): DynamicResolveContext {
   return {
     model: null,
@@ -28,7 +29,7 @@ function context(text = "Alice requests a routine summary."): DynamicResolveCont
 function event(turnId = "turn_1") {
   return { type: "step.started", data: { turnId } };
 }
-function result(model = "openai/small", confidence = 0.9) {
+function result(model = "openai/small", confidence = 0.9, keys = Object.keys(options)) {
   return Response.json({
     model: "jev-test",
     answers: {
@@ -37,10 +38,7 @@ function result(model = "openai/small", confidence = 0.9) {
         choice: model,
         confidence,
         probabilities: Object.fromEntries(
-          [...options.map(([id]) => id), "__eve_typesafe_no_fit__"].map((id) => [
-            id,
-            id === model ? 1 : 0,
-          ]),
+          [...keys, "__eve_typesafe_no_fit__"].map((id) => [id, id === model ? 1 : 0]),
         ),
       },
     },
@@ -53,6 +51,97 @@ beforeEach(() => {
 });
 
 describe("autoModel", () => {
+  it("routes by option key and restores provider instances without serializing them", async () => {
+    const provider = anthropic("sonnet-5");
+    const choices = {
+      ...options,
+      my_secret_model: { model: provider, description: "Easy problems" },
+    };
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockImplementation(async () => result("my_secret_model", 0.9, Object.keys(choices)));
+    const onDecision = vi.fn();
+    const create = (model = provider) =>
+      autoModel({
+        options: { ...choices, my_secret_model: { model, description: "Easy problems" } },
+        apiKey: "test",
+        fetch,
+        onDecision,
+        eligible: (key) => {
+          expectTypeOf(key).toEqualTypeOf<"openai/large" | "openai/small" | "my_secret_model">();
+          return true;
+        },
+      }).events["step.started"]!;
+    expect(await create()(event(), context())).toBe(provider);
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]!.body)).questions.route.criteria).toEqual({
+      ...options,
+      my_secret_model: "Easy problems",
+      __eve_typesafe_no_fit__: "None of the configured models fits this task.",
+    });
+    expect(onDecision).toHaveBeenCalledWith(expect.objectContaining({ model: "my_secret_model" }));
+    const saved = serializeContext(runtime.state!);
+    expect(JSON.stringify(saved)).not.toContain("sonnet-5");
+    runtime.state = await deserializeContext(saved);
+    const restoredProvider = anthropic("sonnet-5");
+    expect(await create(restoredProvider)(event(), context())).toBe(restoredProvider);
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(onDecision).toHaveBeenCalledOnce();
+    const changedProvider = anthropic("another-model");
+    expect(await create(changedProvider)(event(), context())).toBe(changedProvider);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["uncertainty", "unavailable"])(
+    "resolves a provider fallback for %s by option key",
+    async (source) => {
+      const model = anthropic("sonnet-5");
+      const handler = autoModel({
+        options: { custom: { model, description: "Easy problems" } },
+        apiKey: "test",
+        fetch: async () =>
+          source === "unavailable"
+            ? new Response(null, { status: 529 })
+            : result("__eve_typesafe_no_fit__", 0.9, ["custom"]),
+        fallback: { model: "custom", onUnavailable: true },
+      }).events["step.started"]!;
+      expect(await handler(event(), context())).toBe(model);
+      runtime.state = await deserializeContext(serializeContext(runtime.state!));
+      expect(await handler(event(), context())).toBe(model);
+    },
+  );
+
+  it("resolves string model aliases and applies eligibility to option keys", async () => {
+    const eligible = vi.fn((key: string) => key === "custom");
+    const handler = autoModel({
+      options: {
+        ...options,
+        custom: { model: "anthropic/sonnet-5", description: "Easy problems" },
+      },
+      eligible,
+      apiKey: "test",
+      fetch: async () => result("custom", 0.9, ["custom"]),
+    }).events["step.started"]!;
+    expect(await handler(event(), context())).toBe("anthropic/sonnet-5");
+    expect(eligible.mock.calls.map(([key]) => key)).toEqual([
+      "openai/large",
+      "openai/small",
+      "custom",
+    ]);
+  });
+
+  it.each([
+    null,
+    [],
+    { broken: null },
+    { broken: 42 },
+    { broken: { description: "Missing model" } },
+    { broken: { model: {}, description: "Invalid model" } },
+    { broken: { model: "", description: "Empty model" } },
+    { broken: { model: "openai/large", description: "" } },
+  ])("rejects invalid option maps", (options) => {
+    expect(() => autoModel({ options } as never)).toThrow();
+  });
+
   it("defers inference, sees the first prompt, reuses the turn, and selects again on the next turn", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => result());
     const onDecision = vi.fn();
@@ -259,9 +348,9 @@ describe("autoModel", () => {
   });
 
   it("rejects ambiguous configuration before compilation", () => {
-    expect(() => autoModel({ options: [] })).toThrow();
+    expect(() => autoModel({ options: {} })).toThrow();
     expect(() => autoModel({ options: [[42, "Routine work"]] } as never)).toThrow();
-    expect(() => autoModel({ options: [options[0], options[0]] })).toThrow();
+    expect(() => autoModel({ options: { __eve_typesafe_no_fit__: "Reserved" } })).toThrow();
     expect(() => autoModel({ options, fallback: { model: "outside" } } as never)).toThrow();
     expect(() =>
       autoModel({ options, fallback: { model: "openai/large", minConfidence: 2 } }),

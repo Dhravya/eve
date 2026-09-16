@@ -103,21 +103,34 @@ request. For recurring business decisions, wrap `decide` in a purpose-specific
 
 ```ts title="agent/agent.ts"
 import { defineAgent } from "eve";
+import { anthropic } from "eve/models/anthropic";
 import { autoModel } from "eve/experimental/typesafe";
 
 export default defineAgent({
   model: autoModel({
-    options: [
-      ["openai/gpt-5.6-sol", "Difficult reasoning and ambiguous engineering tasks"],
-      ["openai/gpt-5.6-luna", "Routine tasks where fast completion matters"],
-    ],
+    options: {
+      "openai/gpt-5.6-sol": "Difficult reasoning and ambiguous engineering tasks",
+      my_secret_model: {
+        model: anthropic("sonnet-5"),
+        description: "Routine tasks where fast completion matters",
+      },
+    },
     fallback: { model: "openai/gpt-5.6-sol", minConfidence: 0.8, onUnavailable: true },
   }),
 });
 ```
 
-Use model IDs available to your provider account. Descriptions supply the routing
-criteria; Jev does not look up current model prices or capabilities. The threshold
+Each option key names a route. A string value describes a model whose ID is the
+key. An object value supplies `{ model, description }`; `model` accepts a model ID
+or a provider instance, such as `anthropic(...)`. The router returns the configured
+model instance directly. Use models available to your provider account.
+
+`fallback.model`, `eligible(key, ctx)`, and `onDecision`'s `model` use option keys,
+including aliases such as `my_secret_model`. For each option, Jev receives only
+the key and description. Durable state stores the selected key and decision metadata;
+provider instances and credentials remain in the authored configuration.
+
+Descriptions supply the routing criteria; Jev does not look up current model prices or capabilities. The threshold
 above is an example, not a universal setting. Evaluate it against your tasks.
 
 `autoModel` returns an ordinary [dynamic model definition](./dynamic-capabilities).
@@ -142,7 +155,7 @@ embedded in user text. A single latest text message over the limit fails rather
 than being silently truncated. Supply `state(ctx)` to project approved evidence
 or a bounded summary for your application.
 
-Use `eligible(model, ctx)` for deterministic application constraints. It runs on
+Use `eligible(key, ctx)` for deterministic application constraints. It runs on
 every step and must return a boolean. Filter for required modalities, context
 capacity, tenancy, and model access using metadata your application knows.
 The helper does not perform model capability discovery. Image or file parts
@@ -191,7 +204,7 @@ repeat inference and billing; eve does not promise exactly-once requests.
 | `signal`        | Caller cancellation for `decide`. The tool and router use eve's active cancellation signal.                                                                                                                                                                     |
 | `fetch`         | Trusted server-side fetch override for transport configuration and deterministic tests. The endpoint remains `https://api.typesafe.ai/v1/systemone`; redirects are rejected.                                                                                    |
 | Request limits  | 1–64 questions, 128 KiB of serialized JSON, 16 nesting levels, and 20000 traversed values. These are eve limits, not advertised TypeSafe quotas.                                                                                                                |
-| Question limits | Prompts: 8192 characters. Descriptions: 4096 characters. Choice: 1–255 options. Score: 2–10 levels. `autoModel`: 1–254 unique model IDs, reserving one option for no-fit.                                                                                       |
+| Question limits | Prompts: 8192 characters. Descriptions: 4096 characters. Choice: 1–255 options. Score: 2–10 levels. `autoModel`: 1–254 option keys, reserving one option for no-fit.                                                                                            |
 | Response limit  | 1 MiB, with answer keys, types, option membership, probability distributions, confidence, score bounds, and usage validated.                                                                                                                                    |
 
 `DecisionError` exposes a safe `code` and optional HTTP `status`. Codes are

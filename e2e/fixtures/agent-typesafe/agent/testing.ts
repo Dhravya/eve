@@ -45,13 +45,19 @@ export const typesafeFetch: typeof globalThis.fetch = async (_url, init) => {
   });
 };
 
-/** Run the real router and substitute only downstream LLM generation with a scripted model. */
+/** Run the real router with authored scripted model instances. */
 export function fixtureModel(respond: MockModelResponder, scope: "turn" | "session" = "turn") {
   const model = autoModel({
-    options: [
-      ["openai/large", "Difficult investigations"],
-      ["openai/small", "Routine requests"],
-    ],
+    options: {
+      "openai/large": {
+        model: mockModel({ modelId: "openai/large", respond }),
+        description: "Difficult investigations",
+      },
+      "openai/small": {
+        model: mockModel({ modelId: "openai/small", respond }),
+        description: "Routine requests",
+      },
+    },
     apiKey: "fixture-key",
     fetch: typesafeFetch,
     scope,
@@ -64,7 +70,7 @@ export function fixtureModel(respond: MockModelResponder, scope: "turn" | "sessi
       "step.started": async (event, ctx) => {
         const selected = await model.events["step.started"]!(event, ctx);
         return {
-          model: mockModel({ modelId: selected, respond }),
+          model: selected,
           modelContextWindowTokens: 1_000_000,
         };
       },

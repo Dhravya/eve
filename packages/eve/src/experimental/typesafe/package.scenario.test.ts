@@ -16,13 +16,15 @@ it("builds an agent and child using the experimental API from packed eve without
       "agent/instructions.md": "Help Alice review the export incident.",
       "agent/agent.ts": `import { defineAgent } from "eve";
 import { autoModel } from "eve/experimental/typesafe";
-export default defineAgent({ model: autoModel({ options: [["openai/gpt-5.6-sol", "Investigations"], ["openai/gpt-5.6-luna", "Routine work"]] }) });`,
+import { anthropic } from "eve/models/anthropic";
+export default defineAgent({ model: autoModel({ options: { "openai/gpt-5.6-sol": "Investigations", my_secret_model: { model: anthropic("sonnet-5"), description: "Routine work" }} }) });`,
       "agent/tools/decide.ts": `import { decisionTool } from "eve/experimental/typesafe";
 export default decisionTool();`,
       "agent/subagents/worker/instructions.md": "Review the assigned evidence.",
       "agent/subagents/worker/agent.ts": `import { defineAgent } from "eve";
 import { autoModel } from "eve/experimental/typesafe";
-export default defineAgent({ description: "Review evidence", model: autoModel({ scope: "session", options: [["openai/gpt-5.6-sol", "Investigations"]] }) });`,
+import { anthropic } from "eve/models/anthropic";
+export default defineAgent({ description: "Review evidence", model: autoModel({ scope: "session", options: { reviewer: { model: anthropic("sonnet-5"), description: "Investigations" } } }) });`,
     },
   });
   const built = await runPnpmCommand({

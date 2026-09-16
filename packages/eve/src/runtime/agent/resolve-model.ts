@@ -4,7 +4,7 @@ import type { CompiledModuleMap } from "#compiler/module-map.js";
 import type { ContextAccessor } from "#context/key.js";
 import { RuntimeModelMetadataCacheKey, type CachedModelMetadata } from "#context/keys.js";
 import { normalizeAgentDefinition } from "#internal/authored-definition/core.js";
-import { formatLanguageModelGatewayId } from "#internal/runtime-model.js";
+import { formatLanguageModelGatewayId, isRuntimeLanguageModel } from "#internal/runtime-model.js";
 import type {
   RuntimeDynamicModelReference,
   RuntimeModelReference,
@@ -324,30 +324,6 @@ function validateRuntimeLanguageModel(model: unknown): asserts model is Language
       "Dynamic model resolver returned an invalid model. Return an AI Gateway model id string, an AI SDK language model, or { model, modelContextWindowTokens?, modelOptions? }.",
     );
   }
-}
-
-export function isRuntimeLanguageModel(value: unknown): value is LanguageModel {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-
-  const model = value as {
-    specificationVersion?: unknown;
-    provider?: unknown;
-    modelId?: unknown;
-    doGenerate?: unknown;
-    doStream?: unknown;
-  };
-
-  return (
-    (model.specificationVersion === "v2" ||
-      model.specificationVersion === "v3" ||
-      model.specificationVersion === "v4") &&
-    typeof model.provider === "string" &&
-    typeof model.modelId === "string" &&
-    typeof model.doGenerate === "function" &&
-    typeof model.doStream === "function"
-  );
 }
 
 function parseProviderOptionsRecord(

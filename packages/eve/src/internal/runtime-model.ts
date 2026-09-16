@@ -24,3 +24,27 @@ export function formatLanguageModelGatewayId(model: string | LanguageModel): str
   const modelId = model.modelId.replace(/^(claude-[a-z]+-\d+)-(\d+)$/, "$1.$2");
   return `${provider}/${modelId}`;
 }
+
+export function isRuntimeLanguageModel(value: unknown): value is LanguageModel {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const model = value as {
+    specificationVersion?: unknown;
+    provider?: unknown;
+    modelId?: unknown;
+    doGenerate?: unknown;
+    doStream?: unknown;
+  };
+
+  return (
+    (model.specificationVersion === "v2" ||
+      model.specificationVersion === "v3" ||
+      model.specificationVersion === "v4") &&
+    typeof model.provider === "string" &&
+    typeof model.modelId === "string" &&
+    typeof model.doGenerate === "function" &&
+    typeof model.doStream === "function"
+  );
+}

@@ -274,8 +274,8 @@ critical evidence or silently split a request whose questions need the full stat
 
 ## Proposed `autoModel`
 
-Keep the requested tuple API. This is a reusable dynamic-model definition, not a
-new model provider or an extra agent:
+Use a keyed options map with model IDs as shorthand and explicit provider models
+under aliases. The helper returns a reusable dynamic-model definition:
 
 ```ts
 // agent/agent.ts
@@ -284,15 +284,21 @@ import { autoModel } from "eve/experimental/typesafe";
 
 export default defineAgent({
   model: autoModel({
-    options: [
-      ["openai/gpt-5.6-sol", "For difficult reasoning and ambiguous engineering problems"],
-      ["openai/gpt-5.6-luna", "For routine requests where fast completion matters"],
-    ],
+    options: {
+      "openai/gpt-5.6-sol": "For difficult reasoning and ambiguous engineering problems",
+      "openai/gpt-5.6-luna": "For routine requests where fast completion matters",
+    },
   }),
 });
 ```
 
-These are the model identifiers supplied in the request, not a claim that both
+String values describe the model ID used as the option key. An object value
+`{ model: anthropic("sonnet-5"), description: "Routine work" }` under a custom key
+returns that provider instance. Only keys and descriptions go to Jev; only the
+selected key and decision metadata are persisted. Eligibility, fallback, and
+observation refer to option keys.
+
+These are illustrative model identifiers, not a claim that both
 are available in every AI Gateway account. Validate the selected model through
 eve's normal runtime catalog and credential path.
 
@@ -307,17 +313,17 @@ eve's normal runtime catalog and credential path.
    for eligibility checks rather than claiming Jev can interpret their bytes.
    Offer an authored `state(ctx)` override for domain-specific context.
 3. Ask one Choice question using the supplied descriptions as routing criteria.
-   Add a no-fit option internally; accept 1–254 unique configured model IDs to
+   Add a no-fit option internally; accept 1–254 configured option keys to
    stay within Jev's 255-option limit. Fail if no eligible model remains.
    Descriptions must describe actual task fit;
    Jev cannot infer current model quality or price from a model ID alone.
 4. Validate the answer, apply the uncertainty policy, and return an allowlisted
-   model ID through eve's existing normalization. Deterministically check known
+   model ID or provider instance through eve's existing normalization. Check known
    modality, context, and application constraints before selection. Where metadata
    is insufficient, require the author to supply a compatible candidate set.
-5. Persist the selected ID and decision metadata in session-local state, keyed by
-   turn and helper configuration. Return that ID on subsequent step events without
-   another Jev request. Never keep mutable selection in module-global state.
+5. Persist the selected option key and decision metadata in session-local state,
+   keyed by turn and helper configuration. Resolve that key to its authored model
+   on subsequent step events without another Jev request. Never keep mutable selection in module-global state.
 
 Proposed default scope is `"turn"`, meaning one decision at the first step of a
 turn, not a `turn.started` callback. Offer `scope: "session"` to keep the first
@@ -339,10 +345,10 @@ routing should provide an evaluated confidence threshold and explicit fallback:
 import { autoModel } from "eve/experimental/typesafe";
 
 export const routedModel = autoModel({
-  options: [
-    ["openai/gpt-5.6-sol", "Difficult or ambiguous tasks"],
-    ["openai/gpt-5.6-luna", "Routine tasks with clear requirements"],
-  ],
+  options: {
+    "openai/gpt-5.6-sol": "Difficult or ambiguous tasks",
+    "openai/gpt-5.6-luna": "Routine tasks with clear requirements",
+  },
   fallback: { model: "openai/gpt-5.6-sol", minConfidence: 0.8, onUnavailable: true },
   timeoutMs: 1000,
   scope: "turn",
