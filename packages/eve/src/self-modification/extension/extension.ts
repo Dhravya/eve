@@ -22,6 +22,7 @@ export const selfModificationConfigSchema = z
       })
       .optional(),
   })
+  .optional()
   .default({});
 
 /** Extension mount configured with the same policy as the agent and sandbox. */
