@@ -1,12 +1,11 @@
 import { defineEval } from "eve/evals";
 import { satisfies } from "eve/evals/expect";
 
-const PROGRESS = "EXPORT-PROGRESS";
 const RESULT = "EXPORT-COMPLETE";
 
 export default defineEval({
   description:
-    "An authored background defineTool yields state and progress, explicitly posts a message, then completes; the parent sees both.",
+    "A background workflow streams progress and delivers one terminal report to the parent.",
   async test(t) {
     const started = await t.send("BACKGROUND-EXPORT-START");
     started.expectOk();
@@ -19,27 +18,8 @@ export default defineEval({
     const sessionId = t.sessionId;
     if (sessionId === undefined) throw new Error("Eval has no parent session id.");
 
-    const updateLive = t.target.watchTurn(sessionId, {
-      startIndex: requireStreamIndex(t, "update wait"),
-    });
-    const updateTurn = await updateLive.result();
-    updateTurn.expectOk();
-    updateTurn.messageIncludes("BACKGROUND-EXPORT-UPDATE-RECEIVED");
-    await t.require(
-      updateTurn.events,
-      satisfies(
-        (events: typeof updateTurn.events) =>
-          events.some(
-            (event) =>
-              event.type === "message.received" &&
-              messageText(event.data.message).includes(`Export ${taskId}: ${PROGRESS}`),
-          ),
-        "parent receives the authored message with task identity",
-      ),
-    );
-
     const doneLive = t.target.watchTurn(sessionId, {
-      startIndex: requireStreamIndex(updateLive.session, "completion wait"),
+      startIndex: requireStreamIndex(t, "completion wait"),
     });
     const doneTurn = await doneLive.result();
     doneTurn.expectOk();
@@ -59,6 +39,10 @@ export default defineEval({
         "parent receives the executor completion with task identity",
       ),
     );
+    doneTurn.event("turn.started", { count: 1 });
+    doneTurn.notEvent("message.received", {
+      data: (data) => messageText(data.message).includes("PROGRESS"),
+    });
     t.noFailedActions();
   },
 });

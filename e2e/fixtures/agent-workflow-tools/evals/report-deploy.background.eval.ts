@@ -16,29 +16,8 @@ export default defineEval({
     const sessionId = t.sessionId;
     if (sessionId === undefined) throw new Error("Eval has no parent session id.");
 
-    const updateLive = t.target.watchTurn(sessionId, {
-      startIndex: requireStreamIndex(t, "update wait"),
-    });
-    const updateTurn = await updateLive.result();
-    updateTurn.expectOk();
-    updateTurn.messageIncludes("WORKFLOW-REPORT-UPDATE-RECEIVED");
-    await t.require(
-      updateTurn.events,
-      satisfies(
-        (events: typeof updateTurn.events) =>
-          events.some(
-            (event) =>
-              event.type === "message.received" &&
-              messageText(event.data.message).includes(
-                `Deploy ${taskId}: WORKFLOW-REPORT-PROGRESS deploy api`,
-              ),
-          ),
-        "parent receives the run's progress note with task identity",
-      ),
-    );
-
     const doneLive = t.target.watchTurn(sessionId, {
-      startIndex: requireStreamIndex(updateLive.session, "completion wait"),
+      startIndex: requireStreamIndex(t, "completion wait"),
     });
     const doneTurn = await doneLive.result();
     doneTurn.expectOk();
@@ -58,6 +37,10 @@ export default defineEval({
         "parent receives the run's return value with task identity",
       ),
     );
+    doneTurn.event("turn.started", { count: 1 });
+    doneTurn.notEvent("message.received", {
+      data: (data) => messageText(data.message).includes("PROGRESS"),
+    });
     t.noFailedActions();
   },
 });
