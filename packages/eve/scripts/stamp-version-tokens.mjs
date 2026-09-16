@@ -7,6 +7,12 @@ const monorepoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const workspaceYamlPath = join(monorepoRoot, "pnpm-workspace.yaml");
 const packageJson = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
 
+function resolveDevDependencyVersion(packageName) {
+  const version = packageJson.devDependencies?.[packageName];
+  if (typeof version === "string") return version;
+  throw new Error(`Could not find "${packageName}" in devDependencies at ${packageRoot}`);
+}
+
 async function resolveCatalogVersion(packageName) {
   const contents = await readFile(workspaceYamlPath, "utf8");
   const lines = contents.split(/\r?\n/);
@@ -47,7 +53,7 @@ const replacements = {
   __NODE_ENGINE__: nodeEngine,
   __AI_SDK_VERSION__: await resolveCatalogVersion("ai"),
   __BETTER_AUTH_VERSION__: await resolveCatalogVersion("better-auth"),
-  __VERCEL_CONNECT_VERSION__: await resolveCatalogVersion("@vercel/connect"),
+  __VERCEL_CONNECT_VERSION__: resolveDevDependencyVersion("@vercel/connect"),
   __NEXT_VERSION__: await resolveCatalogVersion("next"),
   __REACT_VERSION__: await resolveCatalogVersion("react"),
   __REACT_DOM_VERSION__: await resolveCatalogVersion("react-dom"),

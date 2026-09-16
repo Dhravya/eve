@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const EVE_PACKAGE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const EVE_CATALOG_ROOT = join(EVE_PACKAGE_ROOT, "..", "eve-catalog");
@@ -71,6 +71,51 @@ function rewriteDeclarationImports(
 }
 
 describe("compiled vendor assets", () => {
+  it("vendors only the Vercel Connect token helper", async () => {
+    const connectUrl = pathToFileURL(
+      join(COMPILED_VENDOR_ROOT, "@vercel", "connect", "index.js"),
+    ).href;
+    const [connect, source] = await Promise.all([
+      import(connectUrl),
+      readFile(join(COMPILED_VENDOR_ROOT, "@vercel", "connect", "index.js"), "utf8"),
+    ]);
+
+    expect(Object.keys(connect)).toEqual(["getToken"]);
+    expect(source).toContain('from"#compiled/@vercel/oidc/index.js"');
+    expect(source).not.toContain("VercelCliError");
+
+    const fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            connector: { id: "connector-id", type: "github", uid: "github/eve-test" },
+            expiresAt: Date.now() + 60_000,
+            token: "github-token",
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    try {
+      await expect(
+        connect.getToken(
+          "github/eve-test",
+          { scopes: ["contents:read"], subject: { type: "app" } },
+          { vercelToken: "oidc-token" },
+        ),
+      ).resolves.toBe("github-token");
+      expect(fetch).toHaveBeenCalledWith(
+        "https://api.vercel.com/v1/connect/token/github%2Feve-test",
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: "Bearer oidc-token" }),
+          method: "POST",
+        }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("lazily compiles schemas created by the vendored Zod runtime", async () => {
     const zodUrl = pathToFileURL(join(COMPILED_VENDOR_ROOT, "zod", "index.js")).href;
     const { z } = await import(zodUrl);

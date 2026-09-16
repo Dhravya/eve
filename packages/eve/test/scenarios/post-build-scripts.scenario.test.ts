@@ -42,7 +42,7 @@ async function createPostBuildFixture(
   await writeFile(join(repoRoot, "docs", "guide.md"), "doc\n", "utf8");
   await writeFile(
     join(packageRoot, "package.json"),
-    '{"version":"1.2.3","engines":{"node":">=24"}}\n',
+    '{"version":"1.2.3","engines":{"node":">=24"},"devDependencies":{"@vercel/connect":"3.0.0"}}\n',
     "utf8",
   );
   await writeFile(
@@ -55,7 +55,6 @@ async function createPostBuildFixture(
       '  react: "19.2.6"',
       '  react-dom: "19.2.6"',
       '  streamdown: "2.5.0"',
-      '  "@vercel/connect": "3.0.0"',
       '  "@types/react": "19.2.15"',
       '  "@types/react-dom": "19.2.3"',
       '  zod: "4.0.0"',

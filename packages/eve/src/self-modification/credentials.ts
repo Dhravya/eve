@@ -1,3 +1,5 @@
+import { getToken } from "#compiled/@vercel/connect/index.js";
+
 import type { GitHubRepository, ResolvedGitHubCredentials } from "./config.js";
 
 export type GitHubCredentialCapability = "checkout" | "publish";
@@ -9,20 +11,6 @@ export interface GitHubCredentialRequest {
 
 export interface GitHubCredentialProvider {
   resolve(request: GitHubCredentialRequest): Promise<string>;
-}
-
-interface VercelConnectModule {
-  getToken(
-    connector: string,
-    options: {
-      readonly authorizationDetails: readonly {
-        readonly repositories: readonly string[];
-        readonly type: "github_app_installation";
-      }[];
-      readonly scopes: readonly string[];
-      readonly subject: { readonly type: "app" };
-    },
-  ): Promise<string>;
 }
 
 export const SELF_MODIFICATION_GITHUB_TOKEN_ENV = "EVE_SELF_MODIFICATION_GITHUB_TOKEN";
@@ -62,8 +50,6 @@ export function createVercelConnectCredentialProvider(connector: string): GitHub
   return {
     async resolve(request) {
       try {
-        const moduleName: string = "@vercel/connect";
-        const { getToken } = (await import(moduleName)) as VercelConnectModule;
         const token = await getToken(connector, {
           authorizationDetails: [
             {

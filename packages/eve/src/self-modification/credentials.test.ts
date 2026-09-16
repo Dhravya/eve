@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const getToken = vi.fn();
-vi.mock("@vercel/connect", () => ({ getToken }));
+const { getToken } = vi.hoisted(() => ({ getToken: vi.fn() }));
+vi.mock("#compiled/@vercel/connect/index.js", () => ({ getToken }));
 
 import { createVercelConnectCredentialProvider } from "./credentials.js";
 
