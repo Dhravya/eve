@@ -104,9 +104,10 @@ function validateConfig(
  *
  * The default export of an extension's `extension/extension.ts` is a `defineExtension`
  * handle. A consuming agent mounts it, calling the handle to bind config
- * (`export default crm({ apiKey })`) or re-exporting it directly when there is no
- * config (`export { default } from "@acme/gizmo"`). The extension's own tools,
- * hooks, and connections read the bound config through the handle:
+ * (`export default crm({ apiKey })`) or, when all settings are optional, calling it
+ * without values (`export default crm()`). Extensions with no config can also be
+ * re-exported directly (`export { default } from "@acme/gizmo"`). The extension's own
+ * tools, hooks, and connections read the bound config through the handle:
  *
  * ```ts
  * // extension/extension.ts
