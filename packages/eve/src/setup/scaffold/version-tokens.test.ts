@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { resolveVersionToken } from "./version-tokens.js";
+import { DEFAULT_CONNECT_PACKAGE_VERSION, resolveVersionToken } from "./version-tokens.js";
 
 // These tests always execute from the dev tree (vitest runs over src), so the
 // fallback's sources — eve's package.json and the workspace catalog — are the
@@ -16,13 +16,9 @@ describe("resolveVersionToken", () => {
     expect(resolveVersionToken("evePackage.version", "1.0.0-beta.3")).toBe("1.0.0-beta.3");
   });
 
-  it("resolves the Connect version from eve's devDependencies", () => {
-    const resolved = resolveVersionToken("connectPackageVersion", "__VERCEL_CONNECT_VERSION__");
-
-    const packageJson = JSON.parse(readFileSync(fileURLToPath(EVE_PACKAGE_JSON_URL), "utf8")) as {
-      devDependencies: { "@vercel/connect": string };
-    };
-    expect(resolved).toBe(packageJson.devDependencies["@vercel/connect"]);
+  it("uses a concrete default Connect version", () => {
+    expect(DEFAULT_CONNECT_PACKAGE_VERSION).toBe("2.2.0");
+    expect(DEFAULT_CONNECT_PACKAGE_VERSION).not.toMatch(/^__/);
   });
 
   it("resolves eve runtime and dependency version tokens from eve's own package.json", () => {

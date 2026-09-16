@@ -6,7 +6,7 @@ import { appendEnv } from "../../append-env.js";
 import type { PackageManagerKind } from "../../package-manager.js";
 import { pinnedNodeEngineMajor, type NodeEngineOverride } from "../../node-engine.js";
 import { pathExists, writeTextFile } from "../files.js";
-import { resolveVersionToken } from "../version-tokens.js";
+import { DEFAULT_CONNECT_PACKAGE_VERSION, resolveVersionToken } from "../version-tokens.js";
 import {
   applyPackageManagerWorkspaceConfiguration,
   isPackageManagerWorkspaceMember,
@@ -32,7 +32,6 @@ export type { WebAuthentication, WebPackageVersions } from "./web-options.js";
 export const SLACK_CHANNEL_DEFAULT_ROUTE = "/eve/v1/slack";
 export const DEFAULT_SLACK_CONNECTOR_SLUG = "my-agent";
 
-const DEFAULT_CONNECT_PACKAGE_VERSION = "__VERCEL_CONNECT_VERSION__";
 const NEXT_TYPESCRIPT_PACKAGE_VERSION = "6.0.3";
 const CONNECT_PACKAGE_NAME = "@vercel/connect";
 const NEXT_PACKAGE_NAME = "next";

@@ -1,17 +1,8 @@
-import { getToken } from "#compiled/@vercel/connect/index.js";
-
-import type { GitHubRepository, ResolvedGitHubCredentials } from "./config.js";
-
-export type GitHubCredentialCapability = "checkout" | "publish";
-
-export interface GitHubCredentialRequest {
-  readonly capability: GitHubCredentialCapability;
-  readonly repository: GitHubRepository;
-}
-
-export interface GitHubCredentialProvider {
-  resolve(request: GitHubCredentialRequest): Promise<string>;
-}
+import type {
+  GitHubCredentialProvider,
+  GitHubCredentialRequest,
+  ResolvedGitHubCredentials,
+} from "./config.js";
 
 export const SELF_MODIFICATION_GITHUB_TOKEN_ENV = "EVE_SELF_MODIFICATION_GITHUB_TOKEN";
 
@@ -24,9 +15,16 @@ export function hasGitHubCredential(): boolean {
 export function createGitHubCredentialProvider(
   credentials: ResolvedGitHubCredentials,
 ): GitHubCredentialProvider {
-  return credentials.kind === "pat"
-    ? defaultGitHubCredentialProvider
-    : createVercelConnectCredentialProvider(credentials.connector);
+  if (credentials.kind === "pat") return defaultGitHubCredentialProvider;
+  return {
+    async resolve(request) {
+      const token = await credentials.provider.resolve(request);
+      if (typeof token !== "string" || token.trim().length === 0) {
+        throw new Error("Self-modification credential provider returned an empty GitHub token.");
+      }
+      return token.trim();
+    },
+  };
 }
 
 /** Resolves a PAT GitHub credential without exposing it to authored code. */
@@ -45,32 +43,3 @@ export const defaultGitHubCredentialProvider: GitHubCredentialProvider = {
     return token.trim();
   },
 };
-
-export function createVercelConnectCredentialProvider(connector: string): GitHubCredentialProvider {
-  return {
-    async resolve(request) {
-      try {
-        const token = await getToken(connector, {
-          authorizationDetails: [
-            {
-              type: "github_app_installation",
-              repositories: [`${request.repository.owner}/${request.repository.repo}`],
-            },
-          ],
-          scopes:
-            request.capability === "checkout"
-              ? ["contents:read", "metadata:read"]
-              : ["contents:write", "pull_requests:write", "metadata:read"],
-          subject: { type: "app" },
-        });
-        if (token.trim().length === 0) throw new Error("empty token");
-        return token;
-      } catch (error) {
-        throw new Error(
-          `Self-modification could not obtain a GitHub credential from Vercel Connect for ${connector}. Install and attach the configured GitHub connector to this Vercel project, install the managed GitHub App for the configured repository, then retry.`,
-          { cause: error },
-        );
-      }
-    },
-  };
-}

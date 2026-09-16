@@ -85,7 +85,9 @@ export function renderSelfModificationConfig(values?: SelfModificationSetupValue
 `
     : "";
   const switchCases = `${httpCase}${channelCases}`;
-  const body = `import { defineSelfModificationConfig } from "eve/self-modification/config";
+  const credentialErrorMessage = `Self-modification could not obtain a GitHub credential from Vercel Connect for ${values.connector}. Install and attach the configured GitHub connector to this Vercel project, install the managed GitHub App for the configured repository, then retry.`;
+  const body = `import { getToken } from "@vercel/connect";
+import { defineSelfModificationConfig } from "eve/self-modification/config";
 
 export default defineSelfModificationConfig({
   deployed: {
@@ -97,7 +99,25 @@ export default defineSelfModificationConfig({
     },
     target: { branch: ${JSON.stringify(values.branch)} },
     credentials: {
-      vercelConnect: { connector: ${JSON.stringify(values.connector)} },
+      async resolve({ capability, repository }) {
+        try {
+          return await getToken(${JSON.stringify(values.connector)}, {
+            authorizationDetails: [
+              {
+                type: "github_app_installation",
+                repositories: [repository.owner + "/" + repository.repo],
+              },
+            ],
+            scopes:
+              capability === "checkout"
+                ? ["contents:read", "metadata:read"]
+                : ["contents:write", "pull_requests:write", "metadata:read"],
+            subject: { type: "app" },
+          });
+        } catch (error) {
+          throw new Error(${JSON.stringify(credentialErrorMessage)}, { cause: error });
+        }
+      },
     },
     authorize: ({ channel, principal }) => {
       switch (channel.kind) {

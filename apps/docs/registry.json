@@ -8,7 +8,7 @@
       "type": "registry:item",
       "title": "Self-modification",
       "description": "Add a source editing subagent with local edits and official registry installation.",
-      "dependencies": ["just-bash"],
+      "dependencies": ["just-bash", "@vercel/connect"],
       "meta": {
         "eve": {
           "requires": ">=0.54.4",
@@ -61,7 +61,7 @@
       "type": "registry:item",
       "title": "Self-modification (Experimental)",
       "description": "Add an experimental source editing subagent with local edits and official registry installation.",
-      "dependencies": ["just-bash"],
+      "dependencies": ["just-bash", "@vercel/connect"],
       "meta": {
         "eve": {
           "hidden": true,

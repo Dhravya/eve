@@ -5,9 +5,6 @@ packages:
   - e2e/fixtures/*
   - packages/*
 
-overrides:
-  "@vercel/connect>eve": "workspace:*"
-
 allowBuilds:
   "@google/genai": false # No-op preinstall.
   "@parcel/watcher": false # Builds from source only when explicitly requested.

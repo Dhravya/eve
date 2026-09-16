@@ -12,7 +12,6 @@ import { fileURLToPath } from "node:url";
 type TokenSource =
   | { kind: "eve-version" }
   | { kind: "eve-node-engine" }
-  | { kind: "eve-dev-dependency"; packageName: string }
   | { kind: "catalog"; packageName: string };
 
 function versionToken(name: string): string {
@@ -29,15 +28,13 @@ function bareToken(name: string): string {
 
 const NODE_ENGINE_TOKEN = bareToken("NODE_ENGINE");
 
+export const DEFAULT_CONNECT_PACKAGE_VERSION = "2.2.0";
+
 const TOKEN_SOURCES: Readonly<Record<string, TokenSource>> = {
   [versionToken("EVE_PACKAGE")]: { kind: "eve-version" },
   [versionToken("EVE_PACKAGE_DEPENDENCY")]: { kind: "eve-version" },
   [NODE_ENGINE_TOKEN]: { kind: "eve-node-engine" },
   [versionToken("AI_SDK")]: { kind: "catalog", packageName: "ai" },
-  [versionToken("VERCEL_CONNECT")]: {
-    kind: "eve-dev-dependency",
-    packageName: "@vercel/connect",
-  },
   [versionToken("NEXT")]: { kind: "catalog", packageName: "next" },
   [versionToken("REACT")]: { kind: "catalog", packageName: "react" },
   [versionToken("REACT_DOM")]: { kind: "catalog", packageName: "react-dom" },
@@ -125,13 +122,6 @@ function resolveTokenFromDevTree(token: string): string | undefined {
       };
       const node = packageJson.engines?.node;
       return typeof node === "string" ? node : undefined;
-    }
-    if (source.kind === "eve-dev-dependency") {
-      const packageJson = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")) as {
-        devDependencies?: Record<string, unknown>;
-      };
-      const version = packageJson.devDependencies?.[source.packageName];
-      return typeof version === "string" ? version : undefined;
     }
     const manifestPath = findWorkspaceManifest(packageRoot);
     if (manifestPath === undefined) return undefined;
