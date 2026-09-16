@@ -17,7 +17,7 @@ describe("defineWorkspaceAgent", () => {
 
     expect(subagent).toMatchObject({ description: "", kind: "remote", path: "/eve/v1/session" });
     expect(await (subagent.url as () => Promise<string>)()).toBe(
-      "https://preview.example.com/eve/agents/research",
+      "https://preview.example.com/eve/research",
     );
     await expect(subagent.auth?.()).resolves.toEqual({
       headers: {
@@ -28,16 +28,14 @@ describe("defineWorkspaceAgent", () => {
   });
 
   it("uses the named workspace route regardless of the caller mount", async () => {
-    vi.stubEnv("EVE_PUBLIC_ROUTE_PREFIX", "/eve/agents/support");
+    vi.stubEnv("EVE_PUBLIC_ROUTE_PREFIX", "/eve/support");
     vi.stubEnv("VERCEL", "1");
     vi.stubEnv("VERCEL_ENV", "preview");
     vi.stubEnv("VERCEL_URL", "preview.example.com");
 
     const subagent = defineWorkspaceAgent({ name: "research" });
 
-    expect((subagent.url as () => string)()).toBe(
-      "https://preview.example.com/eve/agents/research",
-    );
+    expect((subagent.url as () => string)()).toBe("https://preview.example.com/eve/research");
   });
 
   it("requires an explicit transport outside Vercel", async () => {

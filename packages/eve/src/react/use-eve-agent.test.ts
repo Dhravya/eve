@@ -435,10 +435,8 @@ describe("useEveAgent", () => {
       await sendPromise;
     });
 
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/eve/agents/support/eve/v1/session");
-    expect(fetchMock.mock.calls[1]?.[0]).toBe(
-      "/eve/agents/support/eve/v1/session/session_1/stream",
-    );
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/eve/support/v1/session");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/eve/support/v1/session/session_1/stream");
   });
 
   it("marks an optimistic message as failed when send fails before confirmation", async () => {

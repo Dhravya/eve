@@ -81,7 +81,7 @@ function assertComposableConfig(
       );
     }
 
-    const publicRoutePrefix = name === undefined ? "" : `/eve/agents/${name}`;
+    const publicRoutePrefix = name === undefined ? "" : `/eve/${name}`;
     const routeSources = [
       createEveServiceRouteSrc(publicRoutePrefix),
       createEveHomeRouteSrc(publicRoutePrefix),
@@ -130,7 +130,7 @@ export async function withEve<TConfig extends EveVercelConfig>(
       : context.workspace.members.map((member) => ({
           appRoot: member.appRoot,
           name: member.name,
-          publicRoutePrefix: `/eve/agents/${member.name}`,
+          publicRoutePrefix: `/eve/${member.name}`,
           workspaceMember: true,
         }));
   if (agents.length === 0) {

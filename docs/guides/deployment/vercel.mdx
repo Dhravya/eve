@@ -63,11 +63,11 @@ my-project/
         └── agent/
 ```
 
-In an eve workspace, eve discovers direct `agents/<name>/` children that contain nested or flat agent files and do not have their own `package.json`. Their directory names become their public identities, exposed at `/eve/agents/<name>/eve/v1/*`. A child with its own `package.json` is a separate package rather than a member of the parent eve workspace. Run an agent-specific command from a member directory or pass `--agent <name>` at the workspace root; interactive commands open a picker when the name is omitted. Run project-level build, link, and deploy commands from the workspace root. Workspace members share the root package, dependencies, and build scripts.
+In an eve workspace, eve discovers direct `agents/<name>/` children that contain nested or flat agent files and do not have their own `package.json`. Their directory names become their public identities, exposed at `/eve/<name>/v1/*`. A child with its own `package.json` is a separate package rather than a member of the parent eve workspace. Run an agent-specific command from a member directory or pass `--agent <name>` at the workspace root; interactive commands open a picker when the name is omitted. Run project-level build, link, and deploy commands from the workspace root. Workspace members share the root package, dependencies, and build scripts.
 
 Create this layout with `eve init my-project --agents support,research`, or add one agent to an existing workspace with `eve init billing`.
 
-For an agent-only workspace, run `eve build`. eve owns the Vercel Build Output and generates one independently built service and an `/eve/agents/<name>/eve/v1/*` transport route for each workspace member.
+For an agent-only workspace, run `eve build`. eve owns the Vercel Build Output and generates one independently built service and an `/eve/<name>/v1/*` transport route for each workspace member.
 
 ### Compose agents with other Vercel services
 
@@ -92,7 +92,7 @@ export default await withEve({
 });
 ```
 
-Vercel evaluates `vercel.ts` before resolving the service graph. `withEve` adds the root agent, or every direct workspace member, as an independently built service and returns a plain Vercel configuration. Named workspace agents mount at `/eve/agents/<name>/eve/v1/*`; a root agent mounts at `/eve/v1/*`. The frontend does not need `withEve` in its framework configuration or a build script that builds the agents.
+Vercel evaluates `vercel.ts` before resolving the service graph. `withEve` adds the root agent, or every direct workspace member, as an independently built service and returns a plain Vercel configuration. Named workspace agents mount at `/eve/<name>/v1/*`; a root agent mounts at `/eve/v1/*`. The frontend does not need `withEve` in its framework configuration or a build script that builds the agents.
 
 Generated transport routes are inserted before a filesystem handler or, when no filesystem handler exists, before authored routes. `withEve` throws instead of overwriting an authored service key or exact transport route that belongs to a generated agent. Remove the authored route, and remove or rename the authored service; `withEve` adds both automatically. Names in the array form of `services` must also be unique. Other service names, routes, bindings, and Cron Jobs remain authored in `vercel.ts`.
 
@@ -120,7 +120,7 @@ export default await withEve({
 
 A Vercel project can use only one configuration source, so remove `vercel.json` when adopting `vercel.ts`. Keep `eve` in the root package dependencies so Vercel can import `eve/vercel` while evaluating the configuration. Pass `{ root: "/absolute/workspace/path" }` as the second argument only when `vercel.ts` is evaluated from somewhere other than the workspace root.
 
-An authored eve service routed at `/eve/v1` already uses the protocol path; callbacks remain at `/eve/v1/callback/*`. A named mount such as `/eve/agents/support` adds that mount before the protocol path, giving `/eve/agents/support/eve/v1/callback/*`.
+An authored eve service routed at `/eve/v1` already uses the protocol path; callbacks remain at `/eve/v1/callback/*`. A named mount such as `/eve/support` adds that mount before the protocol path, giving `/eve/support/v1/callback/*`.
 
 Deploy the linked project to production:
 
@@ -148,8 +148,8 @@ Vercel uses the generated output to configure these services:
 Check the health route and connect the development TUI:
 
 ```bash
-curl https://your_agent.vercel.app/eve/agents/support/eve/v1/health
-eve dev https://your_agent.vercel.app/eve/agents/support
+curl https://your_agent.vercel.app/eve/support/v1/health
+eve dev https://your_agent.vercel.app/eve/support
 ```
 
 Set `VERCEL_AUTOMATION_BYPASS_SECRET` locally before connecting if the deployment uses Deployment Protection.

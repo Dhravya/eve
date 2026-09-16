@@ -75,7 +75,7 @@ function defaultWorkspaceAgentTransport(name: string): WorkspaceAgentTransport {
           "The default workspace-agent transport requires VERCEL_URL, or VERCEL_PROJECT_PRODUCTION_URL in production.",
         );
       }
-      return `https://${host}/eve/agents/${name}`;
+      return `https://${host}/eve/${name}`;
     },
   };
 }
