@@ -8,7 +8,7 @@
       "type": "registry:item",
       "title": "Self-modification",
       "description": "Add a source editing subagent with local edits and official registry installation.",
-      "dependencies": ["just-bash", "@vercel/connect"],
+      "dependencies": ["just-bash"],
       "meta": {
         "eve": {
           "requires": ">=0.54.4",
@@ -28,17 +28,12 @@
             {
               "package": "eve",
               "bin": "eve",
-              "args": ["integration", "setup", "self-modification-production"]
+              "args": ["integration", "setup", "self-modification"]
             }
           ]
         }
       },
       "files": [
-        {
-          "path": "registry/eve/self-modification/config.ts",
-          "type": "registry:file",
-          "target": "agent/subagents/self-modification/config.ts"
-        },
         {
           "path": "registry/eve/self-modification/agent.ts",
           "type": "registry:file",
