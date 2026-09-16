@@ -9,7 +9,7 @@ vi.mock("#compiled/@vercel/oidc/index.js", () => ({
 afterEach(() => vi.unstubAllEnvs());
 
 describe("defineWorkspaceAgent", () => {
-  it("selects Vercel transport in a Vercel environment", async () => {
+  it("selects the named workspace route in a Vercel environment", async () => {
     vi.stubEnv("VERCEL", "1");
     vi.stubEnv("VERCEL_ENV", "preview");
     vi.stubEnv("VERCEL_URL", "preview.example.com");
@@ -17,7 +17,7 @@ describe("defineWorkspaceAgent", () => {
 
     expect(subagent).toMatchObject({ description: "", kind: "remote", path: "/eve/v1/session" });
     expect(await (subagent.url as () => Promise<string>)()).toBe(
-      "https://preview.example.com/research",
+      "https://preview.example.com/eve/agents/research",
     );
     await expect(subagent.auth?.()).resolves.toEqual({
       headers: {
@@ -27,7 +27,7 @@ describe("defineWorkspaceAgent", () => {
     });
   });
 
-  it("uses the Next.js named-agent route when the caller is mounted through eve/next", async () => {
+  it("uses the named workspace route regardless of the caller mount", async () => {
     vi.stubEnv("EVE_PUBLIC_ROUTE_PREFIX", "/eve/agents/support");
     vi.stubEnv("VERCEL", "1");
     vi.stubEnv("VERCEL_ENV", "preview");
