@@ -60,7 +60,9 @@ function isBrandedWorkspaceSubagent(value: unknown): value is BrandedWorkspaceSu
 
 function workspaceAgentRoutePrefix(name: string): string {
   const callerRoutePrefix = normalizePublicRoutePrefix(process.env.EVE_PUBLIC_ROUTE_PREFIX);
-  const namespace = callerRoutePrefix?.slice(0, callerRoutePrefix.lastIndexOf("/")) ?? "";
+  const namespace =
+    callerRoutePrefix?.slice(0, callerRoutePrefix.lastIndexOf("/")) ??
+    (process.env.VERCEL_ENV === "development" ? "" : "/eve");
   return `${namespace}/${name}`;
 }
 
